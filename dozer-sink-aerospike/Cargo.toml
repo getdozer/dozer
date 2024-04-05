@@ -12,4 +12,3 @@ dozer-types = { path = "../dozer-types" }
 aerospike-client-sys = { path = "./aerospike-client-sys" }
 itertools = "0.12"
 smallvec = "1.13.1"
-crossbeam-channel = "0.5"

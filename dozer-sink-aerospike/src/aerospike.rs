@@ -1,4 +1,3 @@
-use std::ptr::null_mut;
 use std::sync::Arc;
 use std::time::Instant;
 use std::{
@@ -24,34 +23,12 @@ use dozer_types::{
     types::{DozerDuration, DozerPoint, Field, Schema},
 };
 
-use crate::denorm_dag::AerospikeSchema;
 use crate::{denorm_dag::Error, AerospikeSinkError};
 
-#[derive(Debug, Eq)]
+#[derive(Debug)]
 pub struct BinNames {
     storage: Vec<CString>,
     _ptrs: Vec<*mut i8>,
-}
-
-impl<I, T> From<I> for BinNames
-where
-    I: IntoIterator<Item = T>,
-    T: AsRef<CStr>,
-{
-    fn from(iter: I) -> Self {
-        let values: Vec<_> = iter.into_iter().map(|v| v.as_ref().to_owned()).collect();
-        let ptrs = Self::make_ptrs(&values);
-        Self {
-            storage: values,
-            _ptrs: ptrs,
-        }
-    }
-}
-
-impl PartialEq for BinNames {
-    fn eq(&self, other: &Self) -> bool {
-        self.storage == other.storage
-    }
 }
 
 unsafe impl Send for BinNames {}
@@ -972,7 +949,6 @@ pub(crate) unsafe fn as_batch_records_create(capacity: u32) -> *mut as_batch_rec
         as *mut as_batch_records
 }
 
-#[derive(Debug)]
 pub(crate) struct AsOperations(*mut as_operations);
 impl AsOperations {
     pub(crate) fn new(capacity: u16) -> Self {
@@ -1106,11 +1082,7 @@ impl ReadBatch {
     }
 }
 
-#[derive(Debug)]
 struct AsBatchRecords(NonNull<as_batch_records>);
-
-unsafe impl Send for AsBatchRecords {}
-unsafe impl Send for AsOperations {}
 
 impl AsBatchRecords {
     fn new(capacity: u32) -> Self {
@@ -1131,7 +1103,6 @@ impl AsBatchRecords {
     }
 }
 
-#[derive(Debug)]
 pub(crate) struct WriteBatch {
     client: Arc<Client>,
     inner: Option<AsBatchRecords>,
@@ -1167,7 +1138,9 @@ impl WriteBatch {
 
     pub(crate) fn add_write(
         &mut self,
-        schema: &AerospikeSchema,
+        namespace: &CStr,
+        set: &CStr,
+        bin_names: &[CString],
         key: &[Field],
         values: &[Field],
     ) -> Result<(), AerospikeSinkError> {
@@ -1175,8 +1148,8 @@ impl WriteBatch {
         unsafe {
             init_key(
                 addr_of_mut!((*write_rec).key),
-                &schema.namespace,
-                &schema.set,
+                namespace,
+                set,
                 key,
                 &mut self.allocated_strings,
             )?;
@@ -1184,7 +1157,7 @@ impl WriteBatch {
             init_batch_write_operations(
                 ops.as_mut_ptr(),
                 values,
-                schema.bins.names(),
+                bin_names,
                 &mut self.allocated_strings,
             )?;
             (*write_rec).ops = ops.as_mut_ptr();
@@ -1224,53 +1197,18 @@ impl WriteBatch {
         Ok(())
     }
 
-    pub(crate) fn add_write_to_list_unique(
-        &mut self,
-        schema: &AerospikeSchema,
-        bin: &CStr,
-        key: &[Field],
-        values: &[Field],
-    ) -> Result<(), AerospikeSinkError> {
-        let write_rec = self.reserve_write();
-        unsafe {
-            init_key(
-                addr_of_mut!((*write_rec).key),
-                &schema.namespace,
-                &schema.set,
-                key,
-                &mut self.allocated_strings,
-            )?;
-            let mut ops = AsOperations::new(1);
-            let map = new_record_map(values, schema.bins.names(), &mut self.allocated_strings)?;
-            let mut policy = as_list_policy {
-                order: as_list_order_e_AS_LIST_UNORDERED,
-                flags: as_list_write_flags_e_AS_LIST_WRITE_ADD_UNIQUE
-                    | as_list_write_flags_e_AS_LIST_WRITE_NO_FAIL,
-            };
-            as_operations_list_append(
-                ops.as_mut_ptr(),
-                bin.as_ptr(),
-                null_mut(),
-                &mut policy as *mut _,
-                map as *mut as_val,
-            );
-            (*write_rec).ops = ops.as_mut_ptr();
-            self.operations.push(ops);
-        }
-        Ok(())
-    }
-
     pub(crate) fn add_remove(
         &mut self,
-        schema: &AerospikeSchema,
+        namespace: &CStr,
+        set: &CStr,
         key: &[Field],
     ) -> Result<(), AerospikeSinkError> {
         let remove_rec = self.reserve_remove();
         unsafe {
             init_key(
                 addr_of_mut!((*remove_rec).key),
-                &schema.namespace,
-                &schema.set,
+                namespace,
+                set,
                 key,
                 &mut self.allocated_strings,
             )?;

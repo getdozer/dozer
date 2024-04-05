@@ -2,24 +2,19 @@ pub use crate::aerospike::Client;
 
 use aerospike_client_sys::*;
 use constants::SNAPSHOT_DEFAULT_BATCH_SIZE;
-use crossbeam_channel::Receiver;
-use denorm_dag::{AerospikeSchema, DenormalizationState, MANY_LIST_BIN};
+use denorm_dag::DenormalizationState;
 use dozer_core::event::EventHub;
 use dozer_types::log::error;
 use dozer_types::models::connection::AerospikeConnection;
-use dozer_types::models::sink::AerospikeSinkTable;
 use dozer_types::node::OpIdentifier;
 use dozer_types::thiserror;
-use dozer_types::types::{OperationKind, Record};
 use itertools::Itertools;
 
 use std::collections::HashMap;
 use std::ffi::{CStr, CString, NulError};
 use std::mem::MaybeUninit;
-use std::num::NonZeroUsize;
 use std::ptr::NonNull;
 use std::sync::Arc;
-use std::thread::available_parallelism;
 
 use crate::aerospike::{AerospikeError, WriteBatch};
 
@@ -53,7 +48,7 @@ mod constants {
     pub(super) const META_BASE_TXN_ID_BIN: &CStr = cstr(b"txn_id\0");
     pub(super) const META_LOOKUP_TXN_ID_BIN: &CStr = cstr(b"txn_id\0");
 
-    pub(super) const SNAPSHOT_DEFAULT_BATCH_SIZE: u32 = 20_000;
+    pub(super) const SNAPSHOT_DEFAULT_BATCH_SIZE: u64 = 20_000;
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -83,8 +78,6 @@ enum AerospikeSinkError {
         denorm: Option<u64>,
         lookup: Option<u64>,
     },
-    #[error("Unsupported operation during snapshotting: {0}")]
-    UnsupportedSnapshotOperation(OperationKind),
 }
 
 #[derive(Debug)]
@@ -123,7 +116,7 @@ impl SinkFactory for AerospikeSinkFactory {
         _event_hub: EventHub,
     ) -> Result<Box<dyn dozer_core::node::Sink>, BoxedError> {
         let hosts = CString::new(self.connection_config.hosts.as_str())?;
-        let client = Arc::new(Client::new(&hosts).map_err(AerospikeSinkError::from)?);
+        let client = Client::new(&hosts).map_err(AerospikeSinkError::from)?;
 
         let tables: Vec<_> = self
             .config
@@ -194,26 +187,10 @@ impl SinkFactory for AerospikeSinkFactory {
                 .to_owned()
                 .unwrap_or("__replication_metadata".to_owned()),
         )?;
-        let n_threads = self
-            .config
-            .n_threads
-            .or_else(|| available_parallelism().ok())
-            .unwrap_or(NonZeroUsize::new(4).unwrap());
-        let snapshot_writer_factory = SnapshotWriterFactory::new(
-            client.clone(),
-            self.config
-                .snapshot_batch_size
-                .or_else(|| self.config.preferred_batch_size?.try_into().ok())
-                .unwrap_or(SNAPSHOT_DEFAULT_BATCH_SIZE),
-            &tables,
-            n_threads,
-        )?;
-
         Ok(Box::new(AerospikeSink::new(
             self.config.clone(),
             client,
             denorm_state,
-            snapshot_writer_factory,
             metadata_namespace,
             metadata_set,
         )?))
@@ -267,7 +244,6 @@ struct AerospikeSink {
     metadata_namespace: CString,
     metadata_set: CString,
     client: Arc<Client>,
-    snapshot_writer_factory: SnapshotWriterFactory,
 }
 
 type TxnId = u64;
@@ -367,12 +343,13 @@ impl Drop for AerospikeMetadata {
 impl AerospikeSink {
     fn new(
         config: AerospikeSinkConfig,
-        client: Arc<Client>,
+        client: Client,
         state: DenormalizationState,
-        snapshot_writer_factory: SnapshotWriterFactory,
         metadata_namespace: CString,
         metadata_set: CString,
     ) -> Result<Self, AerospikeSinkError> {
+        let client = Arc::new(client);
+
         let metadata_writer = AerospikeMetadata::new(
             client.clone(),
             metadata_namespace.clone(),
@@ -384,7 +361,12 @@ impl AerospikeSink {
             state,
             metadata_writer,
             last_committed_transaction: None,
-            snapshot_writer: None,
+            snapshotting: false,
+            snapshotting_batch_size: 0,
+            snapshotting_target_batch_size: config
+                .snapshot_batch_size
+                .or(config.preferred_batch_size)
+                .unwrap_or(SNAPSHOT_DEFAULT_BATCH_SIZE),
         };
 
         Ok(Self {
@@ -393,181 +375,32 @@ impl AerospikeSink {
             metadata_namespace,
             metadata_set,
             client,
-            snapshot_writer_factory,
         })
     }
 }
 
 #[derive(Debug)]
 struct AerospikeSinkWorker {
-    snapshot_writer: Option<SnapshotWriter>,
+    snapshotting_batch_size: u64,
+    snapshotting_target_batch_size: u64,
     client: Arc<Client>,
     state: DenormalizationState,
     last_committed_transaction: Option<u64>,
     metadata_writer: AerospikeMetadata,
-}
-
-#[derive(Debug, Clone)]
-struct SetInfo {
-    as_schema: AerospikeSchema,
-    schema: Schema,
-    agg_by_pk: bool,
-}
-
-#[derive(Debug)]
-struct SnapshotWriterFactory {
-    client: Arc<Client>,
-    table_infos: Vec<SetInfo>,
-    target_batch_size: u32,
-    n_threads: NonZeroUsize,
-}
-
-#[derive(Debug)]
-struct SnapshotWriter {
-    target_batch_size: u32,
-    batch_size: u32,
-    batch: Vec<(usize, Record)>,
-    sender: crossbeam_channel::Sender<Vec<(usize, Record)>>,
-    receiver: crossbeam_channel::Receiver<Result<(), AerospikeSinkError>>,
-}
-
-impl SnapshotWriterFactory {
-    fn new(
-        client: Arc<Client>,
-        batch_size: u32,
-        tables: &[(AerospikeSinkTable, Schema)],
-        n_threads: NonZeroUsize,
-    ) -> Result<Self, AerospikeSinkError> {
-        let table_infos = tables
-            .iter()
-            .map(|(table, schema)| {
-                Ok::<_, NulError>(SetInfo {
-                    agg_by_pk: table.aggregate_by_pk,
-                    as_schema: AerospikeSchema::new(&table.namespace, &table.set_name, schema)?,
-                    schema: schema.clone(),
-                })
-            })
-            .try_collect()?;
-        Ok(Self {
-            table_infos,
-            target_batch_size: batch_size,
-            client,
-            n_threads,
-        })
-    }
-
-    fn build(&self) -> SnapshotWriter {
-        SnapshotWriter::new(
-            self.client.clone(),
-            self.table_infos.clone(),
-            self.target_batch_size,
-            self.n_threads,
-        )
-    }
-}
-
-impl SnapshotWriter {
-    fn new(
-        client: Arc<Client>,
-        table_infos: Vec<SetInfo>,
-        target_batch_size: u32,
-        n_threads: NonZeroUsize,
-    ) -> Self {
-        let n_threads: usize = n_threads.into();
-        let (batch_sender, batch_receiver) =
-            crossbeam_channel::bounded(n_threads.saturating_mul(2));
-        let (result_sender, result_receiver) =
-            crossbeam_channel::bounded(n_threads.saturating_mul(2));
-        for _ in 0..n_threads {
-            let receiver: Receiver<Vec<(usize, Record)>> = batch_receiver.clone();
-            let sender = result_sender.clone();
-            let table_infos = table_infos.clone();
-            let client = client.clone();
-            std::thread::spawn(move || {
-                for records in receiver {
-                    if sender
-                        .send(write_snapshot_batch(&client, records, &table_infos))
-                        .is_err()
-                    {
-                        break;
-                    }
-                }
-            });
-        }
-
-        Self {
-            target_batch_size,
-            batch_size: 0,
-            batch: Vec::with_capacity(target_batch_size as usize),
-            sender: batch_sender,
-            receiver: result_receiver,
-        }
-    }
-
-    fn process(&mut self, op: TableOperation) -> Result<(), AerospikeSinkError> {
-        self.batch_size = self
-            .batch_size
-            .saturating_add(op.op.len().try_into().unwrap_or(u32::MAX));
-
-        match op.op {
-            dozer_types::types::Operation::Insert { new } => {
-                self.batch.push((op.port as usize, new))
-            }
-            dozer_types::types::Operation::BatchInsert { new } => {
-                self.batch
-                    .extend(new.into_iter().map(|v| (op.port as usize, v)));
-            }
-            other => {
-                return Err(AerospikeSinkError::UnsupportedSnapshotOperation(
-                    other.kind(),
-                ))
-            }
-        }
-
-        if self.batch_size >= self.target_batch_size {
-            let new_batch = Vec::with_capacity(self.target_batch_size as usize);
-            let batch = std::mem::replace(&mut self.batch, new_batch);
-            self.sender.send(batch).unwrap();
-            self.batch_size = 0;
-        }
-        if let Ok(Err(e)) = self.receiver.try_recv() {
-            return Err(e);
-        }
-        Ok(())
-    }
-
-    fn join(self) -> Result<(), AerospikeSinkError> {
-        let final_batch = self.batch;
-        self.sender.send(final_batch).unwrap();
-        drop(self.sender);
-        self.receiver.into_iter().try_collect()?;
-        Ok(())
-    }
-}
-
-fn write_snapshot_batch(
-    client: &Arc<Client>,
-    records: Vec<(usize, Record)>,
-    table_infos: &[SetInfo],
-) -> Result<(), AerospikeSinkError> {
-    let mut batch = WriteBatch::new(client.clone(), records.len() as u32, None);
-    for (i, rec) in records {
-        let info = &table_infos[i];
-        let key = rec.get_key_fields(&info.schema);
-        if info.agg_by_pk {
-            batch.add_write_to_list_unique(&info.as_schema, MANY_LIST_BIN, &key, rec.values())?;
-        } else {
-            batch.add_write(&info.as_schema, &key, rec.values())?;
-        }
-    }
-    batch.execute()?;
-    Ok(())
+    snapshotting: bool,
 }
 
 impl AerospikeSinkWorker {
     fn process(&mut self, op: TableOperation) -> Result<(), AerospikeSinkError> {
-        if let Some(snapshotter) = self.snapshot_writer.as_mut() {
-            snapshotter.process(op)?;
+        if self.snapshotting {
+            self.snapshotting_batch_size = self
+                .snapshotting_batch_size
+                .saturating_add(op.op.len().try_into().unwrap_or(u64::MAX));
+            self.state.process(op)?;
+            if self.snapshotting_batch_size >= self.snapshotting_target_batch_size {
+                self.state.persist(self.client.clone())?;
+                self.snapshotting_batch_size = 0;
+            }
         } else {
             self.state.process(op)?;
         }
@@ -631,7 +464,13 @@ impl AerospikeSinkWorker {
         for table in denormalized_tables {
             for record in table.records {
                 let key = table.pk.iter().map(|i| record[*i].clone()).collect_vec();
-                batch.add_write(&table.as_schema, &key, &record)?;
+                batch.add_write(
+                    &table.namespace,
+                    &table.set,
+                    &table.bin_names,
+                    &key,
+                    &record,
+                )?;
             }
         }
 
@@ -684,7 +523,7 @@ impl Sink for AerospikeSink {
         &mut self,
         _connection_name: String,
     ) -> Result<(), BoxedError> {
-        self.replication_worker.snapshot_writer = Some(self.snapshot_writer_factory.build());
+        self.replication_worker.snapshotting = true;
         Ok(())
     }
 
@@ -693,6 +532,7 @@ impl Sink for AerospikeSink {
         _connection_name: String,
         id: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
+        self.replication_worker.snapshotting = false;
         if let Some(opid) = id {
             self.replication_worker
                 .metadata_writer
@@ -701,12 +541,7 @@ impl Sink for AerospikeSink {
                 .metadata_writer
                 .write_lookup(opid.txid)?;
         }
-        let writer = self
-            .replication_worker
-            .snapshot_writer
-            .take()
-            .expect("No snapshot writer found");
-        writer.join()?;
+        self.replication_worker.flush_batch()?;
         Ok(())
     }
 
@@ -771,14 +606,16 @@ mod tests {
     use std::{sync::Arc, time::SystemTime};
 
     use dozer_core::{epoch::Epoch, tokio};
+    use std::time::Duration;
 
     use dozer_types::{
         chrono::{DateTime, NaiveDate},
+        geo::Point,
         models::sink::AerospikeSinkTable,
         node::{NodeHandle, SourceStates},
         ordered_float::OrderedFloat,
         rust_decimal::Decimal,
-        types::{FieldDefinition, Operation, Record},
+        types::{DozerDuration, DozerPoint, FieldDefinition, Operation, Record},
     };
 
     use super::*;
@@ -805,7 +642,7 @@ mod tests {
         }
     }
 
-    const N_RECORDS: usize = 1000000;
+    const N_RECORDS: usize = 1000;
     const BATCH_SIZE: usize = 1000;
 
     #[tokio::test]
@@ -813,8 +650,6 @@ mod tests {
     async fn test_inserts() {
         let _ = client();
         let mut sink = sink("inserts").await;
-        sink.on_source_snapshotting_started("inserts".into())
-            .unwrap();
         for i in 0..N_RECORDS {
             sink.process(TableOperation::without_id(
                 Operation::Insert {
@@ -824,8 +659,6 @@ mod tests {
             ))
             .unwrap();
         }
-        sink.on_source_snapshotting_done("inserts".into(), None)
-            .unwrap();
     }
 
     #[tokio::test]
@@ -841,8 +674,6 @@ mod tests {
             batches.push(batch);
         }
         let mut sink = sink("inserts_batch").await;
-        sink.on_source_snapshotting_started("inserts".into())
-            .unwrap();
         for batch in batches {
             sink.process(TableOperation::without_id(
                 Operation::BatchInsert { new: batch },
@@ -850,8 +681,6 @@ mod tests {
             ))
             .unwrap()
         }
-        sink.on_source_snapshotting_done("inserts".into(), None)
-            .unwrap();
     }
 
     async fn sink(set: &str) -> Box<dyn Sink> {
@@ -893,7 +722,7 @@ mod tests {
             connection_config,
             AerospikeSinkConfig {
                 connection: "".to_owned(),
-                n_threads: None,
+                n_threads: Some(1.try_into().unwrap()),
                 tables: vec![AerospikeSinkTable {
                     source_table_name: "test".into(),
                     namespace: "test".into(),
@@ -901,7 +730,7 @@ mod tests {
                     denormalize: vec![],
                     write_denormalized_to: None,
                     primary_key: vec![],
-                    aggregate_by_pk: true,
+                    aggregate_by_pk: false,
                 }],
                 max_batch_duration_ms: None,
                 preferred_batch_size: None,
@@ -918,7 +747,7 @@ mod tests {
 
     fn record(i: u64) -> Record {
         Record::new(vec![
-            Field::UInt(i | 1),
+            Field::UInt(i),
             Field::Int(i as _),
             Field::Float(OrderedFloat(i as _)),
             Field::Boolean(i % 2 == 0),
@@ -930,27 +759,23 @@ mod tests {
             Field::Decimal(Decimal::new(i as _, 1)),
             Field::Timestamp(DateTime::from_timestamp(i as _, i as _).unwrap().into()),
             Field::Date(NaiveDate::from_num_days_from_ce_opt(i as _).unwrap()),
-            /*
-                        Field::Point(DozerPoint(Point::new(
-                            OrderedFloat((i % 90) as f64),
-                            OrderedFloat((i % 90) as f64),
-                        ))),
-                        Field::Duration(DozerDuration(
-                            Duration::from_secs(i),
-                            dozer_types::types::TimeUnit::Seconds,
-                        )),
-            */
+            Field::Point(DozerPoint(Point::new(
+                OrderedFloat((i % 90) as f64),
+                OrderedFloat((i % 90) as f64),
+            ))),
+            Field::Duration(DozerDuration(
+                Duration::from_secs(i),
+                dozer_types::types::TimeUnit::Seconds,
+            )),
             Field::Null,
-            /*
-                        Field::Json(dozer_types::json_types::json!({
-                        i.to_string(): i,
-                        i.to_string(): i as f64,
-                            "array": vec![i; 5],
-                            "object": {
-                            "haha": i
-                        }
-                        })),
-            */
+            Field::Json(dozer_types::json_types::json!({
+            i.to_string(): i,
+            i.to_string(): i as f64,
+                "array": vec![i; 5],
+                "object": {
+                "haha": i
+            }
+            })),
         ])
     }
 

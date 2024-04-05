@@ -3058,7 +3058,6 @@ name = "dozer-sink-aerospike"
 version = "0.1.0"
 dependencies = [
  "aerospike-client-sys",
- "crossbeam-channel",
  "dozer-core",
  "dozer-types",
  "itertools 0.12.1",

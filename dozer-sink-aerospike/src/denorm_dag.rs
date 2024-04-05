@@ -20,8 +20,7 @@ use crate::aerospike::{
 };
 use crate::AerospikeSinkError;
 
-pub(crate) const MANY_LIST_BIN: &CStr =
-    unsafe { CStr::from_bytes_with_nul_unchecked("data\0".as_bytes()) };
+const MANY_LIST_BIN: &CStr = unsafe { CStr::from_bytes_with_nul_unchecked("data\0".as_bytes()) };
 
 #[derive(Debug, Clone)]
 struct CachedRecord {
@@ -442,31 +441,26 @@ impl OneToOneBatch {
             last_version.dirty.then_some((key, last_version.record))
         }) {
             if let Some(dirty_record) = dirty_record {
-                batch.add_write(schema, &key, &dirty_record)?;
+                batch.add_write(
+                    &schema.namespace,
+                    &schema.set,
+                    schema.bins.names(),
+                    &key,
+                    &dirty_record,
+                )?;
             } else {
-                batch.add_remove(schema, &key)?;
+                batch.add_remove(&schema.namespace, &schema.set, &key)?;
             }
         }
         Ok(())
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub(crate) struct AerospikeSchema {
     pub namespace: CString,
     pub set: CString,
     pub bins: BinNames,
-}
-
-impl AerospikeSchema {
-    pub(crate) fn new(namespace: &str, set: &str, schema: &Schema) -> Result<Self, NulError> {
-        let bin_names = BinNames::new(schema.fields.iter().map(|field| field.name.as_str()))?;
-        Ok(Self {
-            namespace: CString::new(namespace)?,
-            set: CString::new(set)?,
-            bins: bin_names,
-        })
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -528,7 +522,9 @@ pub(crate) struct DenormalizationState {
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct DenormalizedTable {
-    pub(crate) as_schema: AerospikeSchema,
+    pub(crate) bin_names: Vec<CString>,
+    pub(crate) namespace: CString,
+    pub(crate) set: CString,
     pub(crate) records: Vec<Vec<Field>>,
     pub(crate) pk: Vec<usize>,
 }
@@ -586,6 +582,7 @@ impl DenormalizationState {
         let mut dag: daggy::Dag<Node, Edge> = daggy::Dag::new();
         let mut node_by_name = HashMap::new();
         for (table, schema) in tables.iter() {
+            let bin_names = BinNames::new(schema.fields.iter().map(|field| field.name.as_str()))?;
             let denormalize_to = table
                 .write_denormalized_to
                 .as_ref()
@@ -603,7 +600,11 @@ impl DenormalizationState {
                 })
                 .transpose()?;
             let idx = dag.add_node(Node {
-                as_schema: AerospikeSchema::new(&table.namespace, &table.set_name, schema)?,
+                as_schema: AerospikeSchema {
+                    namespace: CString::new(table.namespace.as_str())?,
+                    set: CString::new(table.set_name.as_str())?,
+                    bins: bin_names,
+                },
                 schema: schema.clone(),
                 batch: if table.aggregate_by_pk {
                     CachedBatch::Many(OneToManyBatch::default())
@@ -920,11 +921,9 @@ impl DenormalizationState {
             }
             let (namespace, set, _) = node.denormalize_to.clone().unwrap();
             res.push(DenormalizedTable {
-                as_schema: AerospikeSchema {
-                    namespace,
-                    set,
-                    bins: bin_names.into(),
-                },
+                bin_names: bin_names.clone(),
+                namespace,
+                set,
                 records: results,
                 pk: pk.clone(),
             })
@@ -1060,7 +1059,7 @@ mod tests {
 
     use crate::denorm_dag::DenormalizedTable;
 
-    use super::{AerospikeSchema, DenormalizationState};
+    use super::DenormalizationState;
     use crate::tests::client;
 
     macro_rules! schema_row {
@@ -1206,16 +1205,13 @@ mod tests {
     impl PartialEq<DenormalizedTable> for Vec<DenormResult> {
         fn eq(&self, other: &DenormalizedTable) -> bool {
             let DenormalizedTable {
-                as_schema:
-                    AerospikeSchema {
-                        namespace: _,
-                        set: _,
-                        bins,
-                    },
+                bin_names,
+                namespace: _,
+                set: _,
                 records,
                 pk,
             } = other;
-            bins.names()
+            bin_names
                 .iter()
                 .map(|name| name.to_str().unwrap())
                 .eq(DenormResult::schema()
@@ -1344,19 +1340,16 @@ mod tests {
         assert_eq!(
             state.perform_denorm(client.clone()).unwrap(),
             vec![DenormalizedTable {
-                as_schema: AerospikeSchema {
-                    bins: vec![
-                        CString::new("id").unwrap(),
-                        CString::new("base_value").unwrap(),
-                        CString::new("lookup_0_id").unwrap(),
-                        CString::new("lookup_1_id").unwrap(),
-                        CString::new("lookup_1_value").unwrap(),
-                        CString::new("lookup_0_value").unwrap(),
-                    ]
-                    .into(),
-                    namespace: CString::new("test").unwrap(),
-                    set: CString::new("denorm").unwrap(),
-                },
+                bin_names: vec![
+                    CString::new("id").unwrap(),
+                    CString::new("base_value").unwrap(),
+                    CString::new("lookup_0_id").unwrap(),
+                    CString::new("lookup_1_id").unwrap(),
+                    CString::new("lookup_1_value").unwrap(),
+                    CString::new("lookup_0_value").unwrap(),
+                ],
+                namespace: CString::new("test").unwrap(),
+                set: CString::new("denorm").unwrap(),
                 records: vec![vec![
                     Field::UInt(1),
                     Field::UInt(1),
