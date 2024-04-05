@@ -156,7 +156,7 @@ fn map_value(
 }
 
 fn parse_date(string: &str) -> Result<NaiveDate, ParseError> {
-    NaiveDate::parse_from_str(string, "%d-%b-%y")
+    NaiveDate::parse_from_str(string, "%d-%m-%y")
 }
 
 fn parse_date_time(string: &str) -> Result<DateTime<FixedOffset>, ParseError> {
