@@ -163,13 +163,12 @@ impl BuilderDag {
                     let mut checkpoint = None;
                     for sink in source_id_to_sinks.remove(&node.handle).unwrap_or_default() {
                         let sink = &mut graph[sink];
-                        let sink_handle = &sink.handle;
                         let NodeKind::Sink(sink) = &mut sink.kind else {
                             unreachable!()
                         };
                         sink.set_source_state(&state)
                             .map_err(ExecutionError::Sink)?;
-                        if let Some(sink_checkpoint) = source_op_ids.remove(sink_handle) {
+                        if let Some(sink_checkpoint) = source_op_ids.remove(&node.handle) {
                             checkpoint =
                                 Some(checkpoint.unwrap_or(sink_checkpoint).min(sink_checkpoint));
                         }
