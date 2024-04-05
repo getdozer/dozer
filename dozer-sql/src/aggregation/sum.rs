@@ -17,6 +17,7 @@ pub struct SumAggregator {
 #[derive(Debug, bincode::Encode, bincode::Decode)]
 pub struct SumState {
     pub(crate) int_state: i64,
+    pub(crate) int8_state: i8,
     pub(crate) i128_state: i128,
     pub(crate) uint_state: u64,
     pub(crate) u128_state: u128,
@@ -32,6 +33,7 @@ impl SumAggregator {
             current_state: SumState {
                 int_state: 0_i64,
                 i128_state: 0_i128,
+                int8_state: 0_i8,
                 uint_state: 0_u64,
                 u128_state: 0_u128,
                 float_state: 0_f64,
@@ -108,6 +110,20 @@ pub fn get_sum(
                     for field in fields {
                         let val = calculate_err_field!(field.to_int(), Sum, field);
                         current_state.int_state += val;
+                    }
+                }
+                Ok(Field::Int(current_state.int_state))
+            }
+            FieldType::Int8 => {
+                if decr {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_int8(), Sum, field);
+                        current_state.int8_state -= val;
+                    }
+                } else {
+                    for field in fields {
+                        let val = calculate_err_field!(field.to_int8(), Sum, field);
+                        current_state.int8_state += val;
                     }
                 }
                 Ok(Field::Int(current_state.int_state))

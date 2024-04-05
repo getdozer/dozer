@@ -24,6 +24,7 @@ pub enum Field {
     UInt(u64),
     U128(u128),
     Int(i64),
+    Int8(i8),
     I128(i128),
     Float(#[cfg_attr(feature= "arbitrary", arbitrary(with = arbitrary_float))] OrderedFloat<f64>),
     Boolean(bool),
@@ -139,6 +140,7 @@ impl bincode::Encode for Field {
             Field::UInt(v) => v.encode(encoder),
             Field::U128(v) => v.encode(encoder),
             Field::Int(v) => v.encode(encoder),
+            Field::Int8(v) => v.encode(encoder),
             Field::I128(v) => v.encode(encoder),
             Field::Float(v) => v.encode(encoder),
             Field::Boolean(v) => v.encode(encoder),
@@ -255,6 +257,7 @@ impl Field {
             Field::UInt(_) => 8,
             Field::U128(_) => 16,
             Field::Int(_) => 8,
+            Field::Int8(_) => 8,
             Field::I128(_) => 16,
             Field::Float(_) => 8,
             Field::Boolean(_) => 1,
@@ -277,6 +280,7 @@ impl Field {
             Field::UInt(i) => Cow::Owned(i.to_be_bytes().into()),
             Field::U128(i) => Cow::Owned(i.to_be_bytes().into()),
             Field::Int(i) => Cow::Owned(i.to_be_bytes().into()),
+            Field::Int8(i) => Cow::Owned(i.to_be_bytes().into()),
             Field::I128(i) => Cow::Owned(i.to_be_bytes().into()),
             Field::Float(f) => Cow::Owned(f.to_be_bytes().into()),
             Field::Boolean(b) => Cow::Owned(if *b { [1] } else { [0] }.into()),
@@ -392,6 +396,7 @@ impl Field {
             Field::Point(_) => 13,
             Field::Duration(_) => 14,
             Field::Null => 15,
+            Field::Int8(_) => 16,
         }
     }
 
@@ -400,6 +405,7 @@ impl Field {
             Field::UInt(_) => Some(FieldType::UInt),
             Field::U128(_) => Some(FieldType::U128),
             Field::Int(_) => Some(FieldType::Int),
+            Field::Int8(_) => Some(FieldType::Int),
             Field::I128(_) => Some(FieldType::I128),
             Field::Float(_) => Some(FieldType::Float),
             Field::Boolean(_) => Some(FieldType::Boolean),
@@ -611,6 +617,26 @@ impl Field {
         }
     }
 
+    pub fn to_int8(&self) -> Option<i8> {
+        match self {
+            Field::UInt(u) => i8::from_u64(*u),
+            Field::U128(u) => i8::from_u128(*u),
+            Field::Int(i) => Some((*i).try_into().unwrap()),
+            Field::I128(i) => i8::from_i128(*i),
+            Field::Float(f) => i8::from_f64(f.0),
+            Field::Decimal(d) => d.to_i8(),
+            Field::String(s) => s.parse::<i8>().ok(),
+            Field::Text(s) => s.parse::<i8>().ok(),
+            Field::Json(j) => match j.destructure_ref() {
+                DestructuredRef::Number(n) => Some(n.to_f64_lossy() as i8),
+                DestructuredRef::String(s) => s.parse::<i8>().ok(),
+                _ => None,
+            },
+            Field::Null => Some(0_i8),
+            _ => None,
+        }
+    }
+
     pub fn to_int(&self) -> Option<i64> {
         match self {
             Field::UInt(u) => i64::from_u64(*u),
@@ -800,6 +826,7 @@ impl Display for Field {
             Field::UInt(u) => write!(f, "{u}"),
             Field::U128(u) => write!(f, "{u}"),
             Field::Int(i) => write!(f, "{i}"),
+            Field::Int8(i) => write!(f, "{i}"),
             Field::I128(i) => write!(f, "{i}"),
             Field::Float(OrderedFloat(fl)) => write!(f, "{fl}"),
             Field::Decimal(d) => write!(f, "{d}"),
@@ -847,6 +874,7 @@ pub enum FieldType {
     U128,
     /// Signed 64-bit integer.
     Int,
+    Int8,
     /// Signed 128-bit integer.
     I128,
     /// 64-bit floating point number.
@@ -912,6 +940,8 @@ impl Display for FieldType {
             FieldType::UInt => f.write_str("64-bit unsigned int"),
             FieldType::U128 => f.write_str("128-bit unsigned int"),
             FieldType::Int => f.write_str("64-bit int"),
+            FieldType::Int8 => f.write_str("8-bit int"),
+
             FieldType::I128 => f.write_str("128-bit int"),
             FieldType::Float => f.write_str("float"),
             FieldType::Boolean => f.write_str("boolean"),

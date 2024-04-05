@@ -3,13 +3,22 @@ use dozer_types::types::FieldDefinition;
 
 use crate::schema::map_field_to_type;
 
-const DEFAULT_TABLE_ENGINE: &str = "MergeTree()";
+const DEFAULT_TABLE_ENGINE: &str = "CollapsingMergeTree";
 
 pub fn get_create_table_query(
     table_name: &str,
     fields: &[FieldDefinition],
     table_options: Option<ClickhouseTableOptions>,
 ) -> String {
+    let engine = table_options
+        .as_ref()
+        .and_then(|c| c.engine.clone())
+        .unwrap_or_else(|| DEFAULT_TABLE_ENGINE.to_string());
+    let engine_name = if engine == "CollapsingMergeTree" {
+        "CollapsingMergeTree(sign)".to_string()
+    } else {
+        engine.to_owned()
+    };
     let mut parts = fields
         .iter()
         .map(|field| {
@@ -17,11 +26,9 @@ pub fn get_create_table_query(
             format!("{} {}", field.name, typ)
         })
         .collect::<Vec<_>>();
-
-    let engine = table_options
-        .as_ref()
-        .and_then(|c| c.engine.clone())
-        .unwrap_or_else(|| DEFAULT_TABLE_ENGINE.to_string());
+    if engine == "CollapsingMergeTree" {
+        parts.push("sign Int8".to_string());
+    }
 
     parts.push(
         table_options
@@ -63,7 +70,7 @@ pub fn get_create_table_query(
         "CREATE TABLE IF NOT EXISTS {table_name} {cluster} (
                {query}
             )
-            ENGINE = {engine}
+            ENGINE = {engine_name}
             {order_by}
             {partition_by}
             {sample_by}

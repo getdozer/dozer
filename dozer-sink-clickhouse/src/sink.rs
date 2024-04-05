@@ -16,7 +16,7 @@ use crate::metadata::{
 };
 use crate::schema::{ClickhouseSchema, ClickhouseTable};
 use dozer_types::tonic::async_trait;
-use dozer_types::types::{Field, Operation, Schema, TableOperation};
+use dozer_types::types::{Field, FieldDefinition, Operation, Schema, TableOperation};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -113,7 +113,6 @@ impl SinkFactory for ClickhouseSinkFactory {
         let table = ClickhouseSchema::get_clickhouse_table(client.clone(), &self.config).await?;
 
         ClickhouseSchema::compare_with_dozer_schema(client.clone(), &schema, &table).await?;
-
         let sink = ClickhouseSink::new(
             client,
             self.config.clone(),
@@ -155,6 +154,19 @@ impl ClickhouseSink {
         runtime: Arc<Runtime>,
         table: ClickhouseTable,
     ) -> Self {
+        let mut schema = schema.clone();
+
+        if table.engine == "CollapsingMergeTree" && schema.fields.len() > 0 {
+            // get source from any field in schema
+            let source = schema.fields[0].source.clone();
+            schema.fields.push(FieldDefinition {
+                name: "sign".to_string(),
+                typ: dozer_types::types::FieldType::Int8,
+                nullable: false,
+                description: None,
+                source,
+            });
+        }
         Self {
             client,
             runtime,
@@ -249,8 +261,7 @@ impl Sink for ClickhouseSink {
             Operation::Insert { new } => {
                 if self.table.engine == "CollapsingMergeTree" {
                     let mut values = new.values;
-                    values.push(Field::Int(1));
-
+                    values.push(Field::Int8(1));
                     self.insert_values(&values)?;
                 } else {
                     self.insert_values(&new.values)?;
@@ -273,17 +284,19 @@ impl Sink for ClickhouseSink {
                     return Err(BoxedError::from(ClickhouseSinkError::UnsupportedOperation));
                 }
                 let mut values = old.values;
-                values.push(Field::Int(-1));
+                values.push(Field::Int8(-1));
                 self.insert_values(&values)?;
 
                 let mut values = new.values;
-                values.push(Field::Int(1));
+                values.push(Field::Int8(1));
                 self.insert_values(&values)?;
             }
             Operation::BatchInsert { new } => {
                 for record in new {
                     let mut values = record.values;
-                    values.push(Field::Int(1));
+                    if self.table.engine == "CollapsingMergeTree" {
+                        values.push(Field::Int8(1));
+                    }
                     self.insert_values(&values)?;
                 }
                 self.commit_batch()?;

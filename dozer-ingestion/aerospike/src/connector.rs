@@ -807,6 +807,12 @@ pub(crate) fn map_value_to_field(
                 AerospikeConnectorError::ParsingIntFailed
             })?))
         }
+        FieldType::Int8 => {
+            check_type("int8")?;
+            let string = value.as_str().ok_or_else(unsupported_type)?;
+            Ok(Field::Int8(string.parse()?))
+
+        }
         FieldType::U128 => {
             check_type("str")?;
             let string = value.as_str().ok_or_else(unsupported_type)?;

@@ -52,6 +52,11 @@ pub fn map_record(
                     let field = Field::Int(i64_value);
                     values.push(field);
                 }
+                FieldType::Int8 => {
+                    let i8_value: i8 = serde_json::from_value(value.clone())?;
+                    let field = Field::Int8(i8_value);
+                    values.push(field);
+                }
                 FieldType::Float => {
                     let float_value: f64 = serde_json::from_value(value.clone())?;
                     let field = Field::Float(OrderedFloat(float_value));

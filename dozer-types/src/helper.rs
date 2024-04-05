@@ -38,6 +38,9 @@ pub fn json_value_to_field(
         FieldType::Int => serde_json::from_value(value)
             .map_err(DeserializationError::Json)
             .map(Field::Int),
+        FieldType::Int8 => serde_json::from_value(value)
+            .map_err(DeserializationError::Json)
+            .map(Field::Int),
         FieldType::I128 => match value {
             Value::String(str) => return Field::from_str(str.as_str(), typ, nullable),
             _ => Err(DeserializationError::Custom(
@@ -169,6 +172,20 @@ impl Field {
                 }
             }
             FieldType::Int => {
+                if nullable && (value.is_empty() || value == "null") {
+                    Ok(Field::Null)
+                } else {
+                    value
+                        .parse::<i64>()
+                        .map(Field::Int)
+                        .map_err(|_| TypeError::InvalidFieldValue {
+                            field_type: typ,
+                            nullable,
+                            value: value.to_string(),
+                        })
+                }
+            }
+            FieldType::Int8 => {
                 if nullable && (value.is_empty() || value == "null") {
                     Ok(Field::Null)
                 } else {

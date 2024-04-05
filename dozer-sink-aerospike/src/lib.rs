@@ -146,6 +146,7 @@ impl SinkFactory for AerospikeSinkFactory {
                 dozer_types::types::FieldType::UInt
                 | dozer_types::types::FieldType::U128
                 | dozer_types::types::FieldType::Int
+                | dozer_types::types::FieldType::Int8
                 | dozer_types::types::FieldType::I128
                 | dozer_types::types::FieldType::String
                 | dozer_types::types::FieldType::Text

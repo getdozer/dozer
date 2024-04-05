@@ -229,6 +229,7 @@ fn add_last_column_to_block(
         FieldType::UInt => add_last_column.call(trivial_mapper!(Field::UInt)),
         FieldType::U128 => add_last_column.call(trivial_mapper!(Field::U128)),
         FieldType::Int => add_last_column.call(trivial_mapper!(Field::Int)),
+        FieldType::Int8 => add_last_column.call(trivial_mapper!(Field::Int8)),
         FieldType::I128 => add_last_column.call(trivial_mapper!(Field::I128)),
         FieldType::Boolean => add_last_column.call(trivial_mapper!(Field::Boolean)),
         FieldType::Float => add_last_column.call(|field| match field {
@@ -276,7 +277,6 @@ pub async fn insert_multi(
     query_id: Option<String>,
 ) -> Result<(), QueryError> {
     let mut block = Block::<clickhouse_rs::Simple>::new();
-
     for field in fields.iter().rev() {
         block = add_last_column_to_block(block, &field.name, &mut rows, field.typ, field.nullable)?;
     }

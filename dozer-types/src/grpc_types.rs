@@ -106,6 +106,9 @@ pub mod conversions {
             Field::Int(n) => Value {
                 value: Some(value::Value::IntValue(n)),
             },
+            Field::Int8(n) => Value {
+                value: Some(value::Value::IntValue(n as i64)),
+            },
             Field::I128(n) => Value {
                 value: Some(value::Value::Int128Value(n.to_string())),
             },
@@ -163,6 +166,7 @@ pub mod conversions {
             FieldType::UInt => Type::UInt,
             FieldType::U128 => Type::U128,
             FieldType::Int => Type::Int,
+            FieldType::Int8 => Type::Int,
             FieldType::I128 => Type::I128,
             FieldType::Float => Type::Float,
             FieldType::Boolean => Type::Boolean,
