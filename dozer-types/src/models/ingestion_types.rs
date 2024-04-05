@@ -663,6 +663,9 @@ pub struct OracleConfig {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy, Hash, JsonSchema)]
 pub enum OracleReplicator {
-    LogMiner { poll_interval_in_milliseconds: u64 },
+    LogMiner {
+        poll_interval_in_milliseconds: u64,
+        fetch_batch_size: Option<u32>,
+    },
     DozerLogReader,
 }

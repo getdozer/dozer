@@ -112,7 +112,11 @@ fn map_value(
                 .to_f64()
                 .ok_or_else(|| Error::FloatOverflow(number))?,
         ))),
-        (ParsedValue::String(string), FieldType::Decimal, _) => Ok(Field::Decimal(string.parse()?)),
+        (ParsedValue::String(string), FieldType::Decimal, _) => Ok(Field::Decimal(
+            string
+                .parse()
+                .map_err(|e| Error::NumberToDecimal(e, string))?,
+        )),
         (ParsedValue::Number(number), FieldType::Decimal, _) => Ok(Field::Decimal(number)),
         (ParsedValue::Number(number), FieldType::Int, _) => Ok(Field::Int(
             number

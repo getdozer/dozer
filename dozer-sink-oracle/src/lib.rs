@@ -923,6 +923,7 @@ mod tests {
                 batch_size: None,
                 replicator: dozer_types::models::ingestion_types::OracleReplicator::LogMiner {
                     poll_interval_in_milliseconds: 0,
+                    fetch_batch_size: None,
                 },
             },
             OracleSinkConfig {

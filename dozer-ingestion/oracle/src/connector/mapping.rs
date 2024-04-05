@@ -109,11 +109,14 @@ fn map_field(index: usize, field: &FieldDefinition, row: &Row) -> Result<Field, 
             .map_or(Field::Null, |value| Field::Float(OrderedFloat(value))),
         (FieldType::Float, false) => Field::Float(OrderedFloat(row.get(index)?)),
         (FieldType::Decimal, true) => match row.get::<_, Option<String>>(index)? {
-            Some(decimal) => Field::Decimal(Decimal::from_str(&decimal)?),
+            Some(decimal) => Field::Decimal(
+                Decimal::from_str(&decimal).map_err(|e| Error::NumberToDecimal(e, decimal))?,
+            ),
             None => Field::Null,
         },
         (FieldType::Decimal, false) => {
-            Field::Decimal(Decimal::from_str(&row.get::<_, String>(index)?)?)
+            let str = row.get::<_, String>(index)?;
+            Field::Decimal(Decimal::from_str(&str).map_err(|e| Error::NumberToDecimal(e, str))?)
         }
         (FieldType::String, true) => row
             .get::<_, Option<String>>(index)?

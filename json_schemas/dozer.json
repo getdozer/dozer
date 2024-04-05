@@ -1455,6 +1455,14 @@
                 "poll_interval_in_milliseconds"
               ],
               "properties": {
+                "fetch_batch_size": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "uint32",
+                  "minimum": 0.0
+                },
                 "poll_interval_in_milliseconds": {
                   "type": "integer",
                   "format": "uint64",

@@ -50,8 +50,8 @@ pub enum Error {
     },
     #[error("column count mismatch: expected {expected}, actual {actual}")]
     ColumnCountMismatch { expected: usize, actual: usize },
-    #[error("cannot convert Oracle number to decimal: {0}")]
-    NumberToDecimal(#[from] rust_decimal::Error),
+    #[error("cannot convert Oracle number to decimal: {0}. Number: {1}")]
+    NumberToDecimal(rust_decimal::Error, String),
     #[error("insert failed to match: {0}")]
     InsertFailedToMatch(String),
     #[error("delete failed to match: {0}")]
@@ -325,6 +325,7 @@ impl Connector {
         match self.replicator {
             OracleReplicator::LogMiner {
                 poll_interval_in_milliseconds,
+                fetch_batch_size,
             } => self.replicate_log_miner(
                 ingestor,
                 tables,
@@ -332,11 +333,13 @@ impl Connector {
                 checkpoint,
                 con_id,
                 Duration::from_millis(poll_interval_in_milliseconds),
+                fetch_batch_size.unwrap_or(1000),
             ),
             OracleReplicator::DozerLogReader => unimplemented!("dozer log reader"),
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn replicate_log_miner(
         &mut self,
         ingestor: &Ingestor,
@@ -345,6 +348,7 @@ impl Connector {
         checkpoint: Scn,
         con_id: Option<u32>,
         poll_interval: Duration,
+        fetch_batch_size: u32,
     ) {
         let start_scn = checkpoint + 1;
         let table_pair_to_index = tables
@@ -366,6 +370,7 @@ impl Connector {
                     start_scn,
                     con_id,
                     poll_interval,
+                    fetch_batch_size,
                     sender,
                     &ingestor,
                 )
@@ -538,6 +543,7 @@ mod tests {
             1,
             OracleReplicator::LogMiner {
                 poll_interval_in_milliseconds: 1000,
+                fetch_batch_size: None,
             },
         )
         .unwrap();

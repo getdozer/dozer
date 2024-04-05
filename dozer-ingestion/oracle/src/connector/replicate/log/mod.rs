@@ -41,6 +41,7 @@ pub fn log_miner_loop(
     start_scn: Scn,
     con_id: Option<u32>,
     poll_interval: Duration,
+    fetch_batch_size: u32,
     sender: SyncSender<LogManagerContent>,
     ingestor: &Ingestor,
 ) {
@@ -49,7 +50,7 @@ pub fn log_miner_loop(
         start_scn,
         con_id,
         poll_interval,
-        redo::LogMiner,
+        redo::LogMiner { fetch_batch_size },
         sender,
         ingestor,
     )

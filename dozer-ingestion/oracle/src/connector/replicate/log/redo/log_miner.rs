@@ -9,7 +9,9 @@ use crate::connector::{Error, Scn};
 use super::{LogManagerContent, RedoReader};
 
 #[derive(Debug, Clone, Copy)]
-pub struct LogMiner;
+pub struct LogMiner {
+    pub fetch_batch_size: u32,
+}
 
 #[derive(Debug)]
 pub struct LogMinerIter<'a> {
@@ -61,6 +63,12 @@ impl RedoReader for LogMiner {
         END;";
         trace!("{}", sql);
         connection.execute(sql, &[])?;
+        let stmt = |sql| {
+            connection
+                .statement(sql)
+                .fetch_array_size(self.fetch_batch_size)
+                .build()
+        };
 
         let base_sql = "SELECT SCN, TIMESTAMP, XID, PXID, OPERATION_CODE, SEG_OWNER, TABLE_NAME, RBASQN, RBABLK, RBABYTE, SQL_REDO, CSF FROM V$LOGMNR_CONTENTS";
         let rba_filter = "(RBABLK > :last_blk OR (RBABLK = :last_blk AND RBABYTE > :last_byte))";
@@ -69,29 +77,26 @@ impl RedoReader for LogMiner {
             (Some((last_blk, last_byte)), Some(con_id)) => {
                 let sql = format!("{} WHERE {} AND {}", base_sql, rba_filter, con_id_filter);
                 trace!("{}, {}, {}, {}", sql, last_blk, last_byte, con_id);
-                connection.query_as_named(
-                    &sql,
-                    &[
-                        ("last_blk", &last_blk),
-                        ("last_byte", &last_byte),
-                        ("con_id", &con_id),
-                    ],
-                )
+                stmt(&sql)?.into_result_set_named(&[
+                    ("last_blk", &last_blk),
+                    ("last_byte", &last_byte),
+                    ("con_id", &con_id),
+                ])
             }
             (Some((last_blk, last_byte)), None) => {
                 let sql = format!("{} WHERE {}", base_sql, rba_filter);
                 trace!("{}, {}, {}", sql, last_blk, last_byte);
-                connection
-                    .query_as_named(&sql, &[("last_blk", &last_blk), ("last_byte", &last_byte)])
+                stmt(&sql)?
+                    .into_result_set_named(&[("last_blk", &last_blk), ("last_byte", &last_byte)])
             }
             (None, Some(con_id)) => {
                 let sql = format!("{} WHERE {}", base_sql, con_id_filter);
                 trace!("{}, {}", sql, con_id);
-                connection.query_as_named(&sql, &[("con_id", &con_id)])
+                stmt(&sql)?.into_result_set_named(&[("con_id", &con_id)])
             }
             (None, None) => {
                 trace!("{}", base_sql);
-                connection.query_as(base_sql, &[])
+                stmt(base_sql)?.into_result_set(&[])
             }
         }?;
         Ok(LogMinerIter {
