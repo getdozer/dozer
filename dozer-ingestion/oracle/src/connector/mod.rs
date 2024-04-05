@@ -50,8 +50,8 @@ pub enum Error {
     },
     #[error("column count mismatch: expected {expected}, actual {actual}")]
     ColumnCountMismatch { expected: usize, actual: usize },
-    #[error("cannot convert Oracle number to decimal: {0}")]
-    NumberToDecimal(#[from] rust_decimal::Error),
+    #[error("cannot convert Oracle number to decimal: {0}. Value: {1:?}")]
+    NumberToDecimal(rust_decimal::Error, String),
     #[error("insert failed to match: {0}")]
     InsertFailedToMatch(String),
     #[error("delete failed to match: {0}")]

@@ -130,7 +130,9 @@ impl FromStr for ParsedValue {
         if s.starts_with('\'') {
             Ok(ParsedValue::String(s[1..s.len() - 1].to_string()))
         } else {
-            Ok(ParsedValue::Number(s.parse()?))
+            Ok(ParsedValue::Number(s.parse().map_err(|e| {
+                crate::connector::Error::NumberToDecimal(e, s.to_string())
+            })?))
         }
     }
 }

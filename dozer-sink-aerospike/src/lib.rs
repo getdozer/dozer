@@ -3,7 +3,7 @@ pub use crate::aerospike::Client;
 use aerospike_client_sys::*;
 use denorm_dag::DenormalizationState;
 use dozer_core::event::EventHub;
-use dozer_types::log::error;
+use dozer_types::log::{debug, error};
 use dozer_types::models::connection::AerospikeConnection;
 use dozer_types::node::OpIdentifier;
 use dozer_types::thiserror;
