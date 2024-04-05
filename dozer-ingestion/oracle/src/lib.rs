@@ -171,11 +171,12 @@ impl Connector for OracleConnector {
             }
             let snapshot_tables: Vec<_> = tables
                 .iter()
-                .filter_map(|table| {
+                .enumerate()
+                .filter_map(|(i, table)| {
                     table
                         .replication_mode
                         .snapshot()
-                        .then_some(table.info.clone())
+                        .then_some((i, table.info.clone()))
                 })
                 .collect();
             let scn = tokio::task::spawn_blocking(move || {
@@ -203,20 +204,25 @@ impl Connector for OracleConnector {
         };
 
         let ingestor = ingestor.clone();
-        let replication_tables: Vec<TableInfo> = tables
+        let replication_tables: Vec<(usize, TableInfo)> = tables
             .iter()
-            .filter_map(|table| {
+            .enumerate()
+            .filter_map(|(i, table)| {
                 table
                     .replication_mode
                     .replicate()
-                    .then_some(table.info.clone())
+                    .then_some((i, table.info.clone()))
             })
             .collect();
         if replication_tables.is_empty() {
             return Ok(());
         }
         info!("Replicating from checkpoint: {}", checkpoint);
-        let schemas = self.get_schemas(&replication_tables).await?;
+        let tables: Vec<_> = tables
+            .into_iter()
+            .map(|ReplicationTable { info, .. }| info)
+            .collect();
+        let schemas = self.get_schemas(&tables).await?;
         let schemas = schemas
             .into_iter()
             .map(|schema| schema.map(|schema| schema.schema))

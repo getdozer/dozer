@@ -198,10 +198,11 @@ impl Connector {
         Ok(result)
     }
 
-    pub fn get_schemas(
+    pub fn get_schemas<'a>(
         &mut self,
-        table_infos: &[TableInfo],
+        table_infos: impl IntoIterator<Item = &'a TableInfo>,
     ) -> Result<Vec<Result<SourceSchema, Error>>, Error> {
+        let table_infos: Vec<_> = table_infos.into_iter().collect();
         // Collect all tables and columns.
         let schemas = table_infos
             .iter()
@@ -251,9 +252,13 @@ impl Connector {
         Ok(result)
     }
 
-    pub fn snapshot(&mut self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> Result<Scn, Error> {
+    pub fn snapshot(
+        &mut self,
+        ingestor: &Ingestor,
+        tables: Vec<(usize, TableInfo)>,
+    ) -> Result<Scn, Error> {
         let schemas = self
-            .get_schemas(&tables)?
+            .get_schemas(tables.iter().map(|(_, table)| table))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -261,7 +266,7 @@ impl Connector {
         debug!("{}", sql);
         self.connection.execute(sql, &[])?;
 
-        for (table_index, (table, schema)) in tables.into_iter().zip(schemas).enumerate() {
+        for ((table_index, table), schema) in tables.into_iter().zip(schemas) {
             let columns = table.column_names.join(", ");
             let owner = table.schema.unwrap_or_else(|| self.username.clone());
             let sql = format!("SELECT {} FROM {}.{}", columns, owner, table.name);
@@ -312,7 +317,7 @@ impl Connector {
     pub fn replicate(
         &mut self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<(usize, TableInfo)>,
         schemas: Vec<Schema>,
         checkpoint: Scn,
         con_id: Option<u32>,
@@ -335,7 +340,7 @@ impl Connector {
     fn replicate_log_miner(
         &mut self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<(usize, TableInfo)>,
         schemas: Vec<Schema>,
         checkpoint: Scn,
         con_id: Option<u32>,
@@ -344,7 +349,6 @@ impl Connector {
         let start_scn = checkpoint + 1;
         let table_pair_to_index = tables
             .into_iter()
-            .enumerate()
             .map(|(index, table)| {
                 let schema = table.schema.unwrap_or_else(|| self.username.clone());
                 ((schema, table.name), index)
@@ -516,6 +520,7 @@ mod tests {
         let schemas = connector.get_schemas(&tables).unwrap();
         let schemas = schemas.into_iter().map(Result::unwrap).collect::<Vec<_>>();
         dbg!(&schemas);
+        let tables: Vec<_> = tables.into_iter().enumerate().collect();
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
         let handle = {
             let tables = tables.clone();
