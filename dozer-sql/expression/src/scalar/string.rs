@@ -302,9 +302,7 @@ pub(crate) fn evaluate_chr(
                 })
             }
         }
-        Field::Int8(i) => {
-            Ok(Field::String(((i as u8) as char).to_string()))
-        }
+        Field::Int8(i) => Ok(Field::String(((i as u8) as char).to_string())),
         Field::I128(i) => {
             if i >= 0 {
                 Ok(Field::String((((i % 256) as u8) as char).to_string()))

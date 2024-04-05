@@ -862,10 +862,9 @@ pub fn evaluate_lt(
             Field::Float(right_v) => Ok(Field::Boolean((left_v as f64) < *right_v)),
             // left: Int, right: Decimal
             Field::Decimal(right_v) => {
-                let left_v_d = Decimal::from_i64(left_v as i64).ok_or(PipelineError::UnableToCast(
-                    format!("{}", left_v),
-                    "Decimal".to_string(),
-                ))?;
+                let left_v_d = Decimal::from_i64(left_v as i64).ok_or(
+                    PipelineError::UnableToCast(format!("{}", left_v), "Decimal".to_string()),
+                )?;
                 Ok(Field::Boolean(left_v_d < right_v))
             }
             // left: Int, right: String or Text
@@ -903,7 +902,7 @@ pub fn evaluate_lt(
             Field::I128(right_v) => Ok(Field::Boolean(left_v < right_v)),
             // left: I128, right: UInt
             Field::UInt(right_v) => Ok(Field::Boolean(left_v < (right_v as i128))),
-            
+
             // left: I128, right: U128
             Field::U128(right_v) => Ok(Field::Boolean(left_v < (right_v as i128))),
             // left: I128, right: Float

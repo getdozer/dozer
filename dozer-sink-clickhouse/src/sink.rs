@@ -156,7 +156,7 @@ impl ClickhouseSink {
     ) -> Self {
         let mut schema = schema.clone();
 
-        if table.engine == "CollapsingMergeTree" && schema.fields.len() > 0 {
+        if table.engine == "CollapsingMergeTree" && !schema.fields.is_empty() {
             // get source from any field in schema
             let source = schema.fields[0].source.clone();
             schema.fields.push(FieldDefinition {

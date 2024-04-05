@@ -558,7 +558,11 @@ pub(crate) unsafe fn new_record_map(
                 as_orderedmap_set(map, key, check_alloc(as_integer_new(*v)) as *const as_val);
             }
             Field::Int8(v) => {
-                as_orderedmap_set(map, key, check_alloc(as_integer_new((*v).into())) as *const as_val);
+                as_orderedmap_set(
+                    map,
+                    key,
+                    check_alloc(as_integer_new((*v).into())) as *const as_val,
+                );
             }
             Field::I128(v) => {
                 map_set_str(map, key, v, allocated_strings);

@@ -1207,6 +1207,7 @@ impl pyo3::ToPyObject for Field {
             Field::UInt(val) => val.to_object(py),
             Field::U128(val) => val.to_object(py),
             Field::Int(val) => val.to_object(py),
+            Field::Int8(val) => val.to_object(py),
             Field::I128(val) => val.to_object(py),
             Field::Float(val) => val.0.to_object(py),
             Field::Decimal(val) => val.to_f64().unwrap().to_object(py),

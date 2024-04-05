@@ -278,6 +278,7 @@ fn field_type_to_arrow(field_type: FieldType) -> Option<arrow::datatypes::DataTy
         FieldType::UInt => Some(arrow::datatypes::DataType::UInt64),
         FieldType::U128 => None,
         FieldType::Int => Some(arrow::datatypes::DataType::Int64),
+        FieldType::Int8 => Some(arrow::datatypes::DataType::Int64),
         FieldType::I128 => None,
         FieldType::Float => Some(arrow::datatypes::DataType::Float64),
         FieldType::Boolean => Some(arrow::datatypes::DataType::Boolean),
@@ -343,6 +344,18 @@ fn fields_to_arrow<'a, F: IntoIterator<Item = &'a Field>>(
             for field in fields {
                 match field {
                     Field::Int(value) => builder.append_value(*value),
+                    Field::Null => builder.append_null(),
+                    _ => panic!("Unexpected field type"),
+                }
+            }
+            Arc::new(builder.finish())
+        }
+        FieldType::Int8 => {
+            let mut builder = arrow::array::Int64Array::builder(count);
+            for field in fields {
+                match field {
+                    Field::Int(value) => builder.append_value(*value),
+                    Field::Int8(value) => builder.append_value(*value as i64),
                     Field::Null => builder.append_null(),
                     _ => panic!("Unexpected field type"),
                 }
