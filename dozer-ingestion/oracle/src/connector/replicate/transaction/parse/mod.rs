@@ -78,6 +78,8 @@ impl Parser {
             return Ok(None);
         };
 
+        trace!(target: "oracle_replication_parser", "Parsing operation on table {}.{}", table_pair.0, table_pair.1);
+
         let kind = match operation.kind {
             OperationKind::Insert => ParsedOperationKind::Insert(
                 self.insert_parser.parse(&operation.sql_redo, &table_pair)?,
