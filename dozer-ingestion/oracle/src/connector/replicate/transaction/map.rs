@@ -156,10 +156,10 @@ fn map_value(
 }
 
 fn parse_date(string: &str) -> Result<NaiveDate, ParseError> {
-    NaiveDate::parse_from_str(string, "%d-%m-%y")
+    NaiveDate::parse_from_str(string, "%d-%m-%Y")
 }
 
 fn parse_date_time(string: &str) -> Result<DateTime<FixedOffset>, ParseError> {
-    let date_time = NaiveDateTime::parse_from_str(string, "%d-%b-%y %I.%M.%S%.6f %p")?;
+    let date_time = NaiveDateTime::parse_from_str(string, "%d-%m-%Y %I.%M.%S%.6f %p")?;
     Ok(Ok(DateTime::<Utc>::from_naive_utc_and_offset(date_time, Utc))?.fixed_offset())
 }
