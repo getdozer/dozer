@@ -163,3 +163,14 @@ fn parse_date_time(string: &str) -> Result<DateTime<FixedOffset>, ParseError> {
     let date_time = NaiveDateTime::parse_from_str(string, "%d-%m-%Y %I.%M.%S%.6f %p")?;
     Ok(Ok(DateTime::<Utc>::from_naive_utc_and_offset(date_time, Utc))?.fixed_offset())
 }
+
+#[cfg(test)]
+mod tests {
+    use dozer_ingestion_connector::dozer_types::chrono;
+
+    #[test]
+    fn test_parse_date() {
+        let date = super::parse_date("01-01-2021").unwrap();
+        assert_eq!(date, chrono::NaiveDate::from_ymd_opt(2021, 1, 1).unwrap());
+    }
+}
