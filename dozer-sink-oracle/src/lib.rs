@@ -289,7 +289,7 @@ impl OracleSinkFactory {
                 FieldType::Binary => "RAW(1000)",
                 FieldType::Decimal => "NUMBER(29, 10)",
                 FieldType::Timestamp => "TIMESTAMP(9) WITH TIME ZONE",
-                FieldType::Date => "TIMESTAMP(0)",
+                FieldType::Date => "DATE",
                 FieldType::Json => unimplemented!(),
                 FieldType::Point => unimplemented!("Oracle Point"),
                 FieldType::Duration => unimplemented!(),
