@@ -1,6 +1,6 @@
 use oracle::Connection;
 
-use crate::connector::Error;
+use crate::connector::{Error, Scn};
 
 /// Given a log file name, a redo reader emits `LogManagerContent` rows
 pub trait RedoReader {
@@ -8,13 +8,12 @@ pub trait RedoReader {
 
     /// Reads the `LogManagerContent` rows that have:
     ///
-    /// - scn >= start_scn
-    /// - rba > last_rba.0 || (rba == last_rba.0 && rbabyte > last_rba.1)
+    /// - scn > last_scn
     fn read<'a>(
         &self,
         connection: &'a Connection,
         log_file_name: &str,
-        last_rba: Option<(u32, u16)>,
+        last_scn: Option<Scn>,
         con_id: Option<u32>,
     ) -> Result<Self::Iterator<'a>, Error>;
 }
