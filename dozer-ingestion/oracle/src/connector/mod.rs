@@ -506,10 +506,10 @@ mod tests {
 
         env_logger::init();
 
-        let replicate_user = "DOZER";
-        let data_user = "DOZER";
-        let host = "database-1.cxtwfj9nkwtu.ap-southeast-1.rds.amazonaws.com";
-        let sid = "ORCL";
+        let replicate_user = "C##DOZER";
+        let data_user = "CHUBEI";
+        let host = "localhost";
+        let sid = "ORCLPDB1";
 
         let mut connector = super::Connector::new(
             "oracle".into(),
@@ -535,6 +535,7 @@ mod tests {
         estimate_throughput(iterator);
         let checkpoint = handle.join().unwrap().unwrap();
 
+        let sid = "ORCLCDB";
         let mut connector = super::Connector::new(
             "oracle".into(),
             replicate_user.into(),

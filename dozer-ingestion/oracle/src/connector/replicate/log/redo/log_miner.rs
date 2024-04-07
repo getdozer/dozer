@@ -1,3 +1,5 @@
+use std::env;
+
 use dozer_ingestion_connector::dozer_types::{
     chrono::{DateTime, Utc},
     log::{error, trace},
@@ -44,7 +46,7 @@ impl RedoReader for LogMiner {
         &self,
         connection: &'a Connection,
         log_file_name: &str,
-        last_rba: Option<(u32, u16)>,
+        last_scn: Option<Scn>,
         con_id: Option<u32>,
     ) -> Result<Self::Iterator<'a>, Error> {
         let sql =
@@ -52,7 +54,22 @@ impl RedoReader for LogMiner {
         trace!(target: "oracle_log_miner", "{}, {}", sql, log_file_name);
         connection.execute(sql, &[&str_to_sql!(log_file_name)])?;
 
-        let sql = "
+        if let Some(last_scn) = last_scn {
+            let start_scn = last_scn + 1;
+            let sql = "
+        BEGIN
+            DBMS_LOGMNR.START_LOGMNR(
+                STARTSCN => :start_scn,
+                OPTIONS =>
+                    DBMS_LOGMNR.DICT_FROM_ONLINE_CATALOG +
+                    DBMS_LOGMNR.PRINT_PRETTY_SQL +
+                    DBMS_LOGMNR.NO_ROWID_IN_STMT
+            );
+        END;";
+            trace!(target: "oracle_log_miner", "{}, {}", sql, start_scn);
+            connection.execute(sql, &[&start_scn])?;
+        } else {
+            let sql = "
         BEGIN
             DBMS_LOGMNR.START_LOGMNR(
                 OPTIONS =>
@@ -61,8 +78,9 @@ impl RedoReader for LogMiner {
                     DBMS_LOGMNR.NO_ROWID_IN_STMT
             );
         END;";
-        trace!(target: "oracle_log_miner", "{}", sql);
-        connection.execute(sql, &[])?;
+            trace!(target: "oracle_log_miner", "{}", sql);
+            connection.execute(sql, &[])?;
+        };
         let stmt = |sql| {
             connection
                 .statement(sql)
@@ -70,25 +88,23 @@ impl RedoReader for LogMiner {
                 .build()
         };
 
-        let base_sql = "SELECT SCN, TIMESTAMP, XID, PXID, OPERATION_CODE, SEG_OWNER, TABLE_NAME, RBASQN, RBABLK, RBABYTE, SQL_REDO, CSF FROM V$LOGMNR_CONTENTS";
-        let rba_filter = "(RBABLK > :last_blk OR (RBABLK = :last_blk AND RBABYTE > :last_byte))";
+        let base_sql = "SELECT SCN, TIMESTAMP, XID, PXID, OPERATION_CODE, SEG_OWNER, TABLE_NAME, RBASQN, SQL_REDO, CSF FROM V$LOGMNR_CONTENTS";
+        let operation_code_filter = env::var("DOZER_ORACLE_LOG_MINER_OPERATION_CODE_FILTER").ok();
         let con_id_filter = "SRC_CON_ID = :con_id";
         let started = std::time::Instant::now();
-        let result_set = match (last_rba, con_id) {
-            (Some((last_blk, last_byte)), Some(con_id)) => {
-                let sql = format!("{} WHERE {} AND {}", base_sql, rba_filter, con_id_filter);
-                trace!(target: "oracle_log_miner", "{}, {}, {}, {}", sql, last_blk, last_byte, con_id);
-                stmt(&sql)?.into_result_set_named(&[
-                    ("last_blk", &last_blk),
-                    ("last_byte", &last_byte),
-                    ("con_id", &con_id),
-                ])
+        let result_set = match (operation_code_filter, con_id) {
+            (Some(operation_code_filter), Some(con_id)) => {
+                let sql = format!(
+                    "{} WHERE {} AND {}",
+                    base_sql, operation_code_filter, con_id_filter
+                );
+                trace!(target: "oracle_log_miner", "{}, {}", sql, con_id);
+                stmt(&sql)?.into_result_set_named(&[("con_id", &con_id)])
             }
-            (Some((last_blk, last_byte)), None) => {
-                let sql = format!("{} WHERE {}", base_sql, rba_filter);
-                trace!(target: "oracle_log_miner", "{}, {}, {}", sql, last_blk, last_byte);
-                stmt(&sql)?
-                    .into_result_set_named(&[("last_blk", &last_blk), ("last_byte", &last_byte)])
+            (Some(operation_code_filter), None) => {
+                let sql = format!("{} WHERE {}", base_sql, operation_code_filter);
+                trace!(target: "oracle_log_miner", "{}", sql);
+                stmt(&sql)?.into_result_set(&[])
             }
             (None, Some(con_id)) => {
                 let sql = format!("{} WHERE {}", base_sql, con_id_filter);
@@ -121,8 +137,6 @@ impl RowValue for LogManagerContent {
             seg_owner,
             table_name,
             rbasqn,
-            rbablk,
-            rbabyte,
             sql_redo,
             csf,
         ) = <(
@@ -134,8 +148,6 @@ impl RowValue for LogManagerContent {
             Option<String>,
             Option<String>,
             u32,
-            u32,
-            u16,
             Option<String>,
             u8,
         ) as RowValue>::get(row)?;
@@ -148,8 +160,6 @@ impl RowValue for LogManagerContent {
             seg_owner,
             table_name,
             rbasqn,
-            rbablk,
-            rbabyte,
             sql_redo,
             csf,
         })

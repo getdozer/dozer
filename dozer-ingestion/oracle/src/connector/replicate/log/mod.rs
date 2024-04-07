@@ -29,8 +29,6 @@ pub struct LogManagerContent {
     pub seg_owner: Option<String>,
     pub table_name: Option<String>,
     pub rbasqn: u32,
-    pub rbablk: u32,
-    pub rbabyte: u16,
     pub sql_redo: Option<String>,
     pub csf: u8,
 }
@@ -66,12 +64,11 @@ fn log_reader_loop(
     ingestor: &Ingestor,
 ) {
     #[derive(Debug, Clone, Copy)]
-    struct LastRba {
+    struct LastScn {
         sqn: u32,
-        blk: u32,
-        byte: u16,
+        scn: Scn,
     }
-    let mut last_rba: Option<LastRba> = None;
+    let mut last_scn: Option<LastScn> = None;
 
     loop {
         debug!(target: "oracle_replication", "Listing logs starting from SCN {}", start_scn);
@@ -99,18 +96,18 @@ fn log_reader_loop(
             let log = logs.remove(0);
             debug!(target: "oracle_replication",
                 "Reading log {} ({}) ({}, {}), starting from {:?}",
-                log.name, log.sequence, log.first_change, log.next_change, last_rba
+                log.name, log.sequence, log.first_change, log.next_change, last_scn
             );
 
             let iterator = {
-                let last_rba = last_rba.and_then(|last_rba| {
-                    if log.sequence == last_rba.sqn {
-                        Some((last_rba.blk, last_rba.byte))
+                let last_scn = last_scn.and_then(|last_scn| {
+                    if last_scn.sqn == log.sequence {
+                        Some(last_scn.scn)
                     } else {
                         None
                     }
                 });
-                match reader.read(connection, &log.name, last_rba, con_id) {
+                match reader.read(connection, &log.name, last_scn, con_id) {
                     Ok(iterator) => iterator,
                     Err(e) => {
                         if ingestor.is_closed() {
@@ -133,10 +130,9 @@ fn log_reader_loop(
                         break 'replicate_logs;
                     }
                 };
-                last_rba = Some(LastRba {
+                last_scn = Some(LastScn {
                     sqn: content.rbasqn,
-                    blk: content.rbablk,
-                    byte: content.rbabyte,
+                    scn: content.scn,
                 });
                 if sender.send(content).is_err() {
                     return;
