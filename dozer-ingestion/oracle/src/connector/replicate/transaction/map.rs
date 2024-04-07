@@ -112,11 +112,23 @@ fn map_value(
                 .to_f64()
                 .ok_or_else(|| Error::FloatOverflow(number))?,
         ))),
-        (ParsedValue::String(string), FieldType::Decimal, _) => Ok(Field::Decimal(
-            string
-                .parse()
-                .map_err(|e| Error::NumberToDecimal(e, string))?,
-        )),
+        (ParsedValue::String(s), FieldType::Decimal, nullable) => {
+            let string = s.replace(',', "");
+
+            if string == *"NULL" {
+                if nullable {
+                    Ok(Field::Null)
+                } else {
+                    Err(Error::NullValue(name.to_string()))
+                }
+            } else {
+                Ok(Field::Decimal(
+                    string
+                        .parse()
+                        .map_err(|e| Error::NumberToDecimal(e, string))?,
+                ))
+            }
+        }
         (ParsedValue::Number(number), FieldType::Decimal, _) => Ok(Field::Decimal(number)),
         (ParsedValue::Number(number), FieldType::Int, _) => Ok(Field::Int(
             number
@@ -167,10 +179,45 @@ fn parse_date_time(string: &str) -> Result<DateTime<FixedOffset>, ParseError> {
 #[cfg(test)]
 mod tests {
     use dozer_ingestion_connector::dozer_types::chrono;
+    use dozer_ingestion_connector::dozer_types::types::{Field, FieldType};
 
     #[test]
     fn test_parse_date() {
         let date = super::parse_date("01-01-2021").unwrap();
         assert_eq!(date, chrono::NaiveDate::from_ymd_opt(2021, 1, 1).unwrap());
+    }
+
+    #[test]
+    fn parse_malformed_decimal() {
+        let number = "NULL,";
+        let result = super::map_value(
+            super::ParsedValue::String(number.to_string()),
+            FieldType::Decimal,
+            true,
+            "test",
+        )
+        .unwrap();
+
+        assert_eq!(result, super::Field::Null);
+
+        let result = super::map_value(
+            super::ParsedValue::String(number.to_string()),
+            FieldType::Decimal,
+            false,
+            "test",
+        );
+
+        assert!(result.is_err());
+
+        let number = "9999999.99,";
+        let result = super::map_value(
+            super::ParsedValue::String(number.to_string()),
+            FieldType::Decimal,
+            false,
+            "test",
+        )
+        .unwrap();
+
+        assert_eq!(result, Field::Decimal("9999999.99".parse().unwrap()));
     }
 }
