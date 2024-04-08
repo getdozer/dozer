@@ -12,7 +12,7 @@ use std::{
 use itertools::Itertools;
 
 use aerospike_client_sys::*;
-use dozer_types::log::debug;
+use dozer_types::log::{debug, error};
 use dozer_types::{
     chrono::{DateTime, NaiveDate},
     geo::{Coord, Point},
@@ -511,7 +511,10 @@ unsafe fn init_key_single(
                 format!("PT{},{:09}S", duration.as_secs(), duration.subsec_nanos()),
                 allocated_strings,
             ),
-            Field::Null => unreachable!("Primary key cannot be null SET: {:?} Namespace: {:?}", set, namespace),
+            Field::Null => {
+                error!("Primary key cannot be null SET: {:?} Namespace: {:?}", set, namespace);
+                unreachable!("Primary key cannot be null SET: {:?} Namespace: {:?}", set, namespace)
+            },
             Field::Boolean(_) | Field::Json(_) | Field::Point(_) | Field::Float(_) => {
                 unreachable!("Unsupported primary key type. If this is reached, it means this record does not conform to the schema.")
             }
