@@ -1,20 +1,19 @@
 use std::{
     collections::{HashMap, HashSet},
     num::ParseFloatError,
-    sync::{mpsc::channel, Arc},
-    time::{Duration, Instant},
+    sync::Arc,
+    time::Duration,
 };
 
 use dozer_ingestion_connector::{
     dozer_types::{
-        chrono::{self, DateTime},
+        chrono,
         epoch::SourceTime,
-        log::{debug, error, info},
+        log::{debug, error},
         models::ingestion_types::{IngestionMessage, OracleReplicator, TransactionInfo},
         node::OpIdentifier,
-        rust_decimal::{self, Decimal},
-        thiserror,
-        types::{FieldType, Operation, Schema},
+        rust_decimal, thiserror,
+        types::{Operation, Schema},
     },
     Ingestor, SourceSchema, TableIdentifier, TableInfo,
 };
@@ -33,7 +32,7 @@ pub struct Connector {
 }
 
 #[derive(Debug, thiserror::Error)]
-enum ParseDateError {
+pub(crate) enum ParseDateError {
     #[error("Invalid date format: {0}")]
     Chrono(#[from] chrono::ParseError),
     #[error("Invalid oracle format")]
@@ -41,7 +40,7 @@ enum ParseDateError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub(crate) enum Error {
     #[error("oracle error: {0:?}")]
     Oracle(#[from] oracle::Error),
     #[error("pdb not found: {0}")]
@@ -66,26 +65,16 @@ pub enum Error {
     DeleteFailedToMatch(String),
     #[error("update failed to match: {0}")]
     UpdateFailedToMatch(String),
-    #[error("field {0} not found")]
-    FieldNotFound(String),
     #[error("null value for non-nullable field {0}")]
     NullValue(String),
     #[error("cannot parse float: {0}")]
     ParseFloat(#[from] ParseFloatError),
     #[error("cannot parse date time from {1}: {0}")]
     ParseDateTime(ParseDateError, String),
-    #[error("got overflow float number {0}")]
-    FloatOverflow(Decimal),
     #[error("got error when parsing uint {0}")]
     ParseUIntFailed(String),
     #[error("got error when parsing int {0}")]
     ParseIntFailed(String),
-    #[error("type mismatch for {field}, expected {expected:?}, actual {actual:?}")]
-    TypeMismatch {
-        field: String,
-        expected: FieldType,
-        actual: FieldType,
-    },
 }
 
 /// `oracle`'s `ToSql` implementation for `&str` uses `NVARCHAR2` type, which Oracle expects to be UTF16 encoded by default.

@@ -1,47 +1,21 @@
-use std::{borrow::Cow, collections::HashMap, str::FromStr};
+use std::{borrow::Cow, collections::HashMap};
 
 use dozer_ingestion_connector::dozer_types::{
-    chrono::{DateTime, Utc},
     log::trace,
-    rust_decimal::Decimal,
     types::{Operation, Schema},
 };
 use fxhash::FxHashMap;
 
 use crate::connector::{
     replicate::transaction::{map::map_row, parse::insert::DmlParser},
-    Error, Scn,
+    Error,
 };
 
 use super::{
     aggregate::{OperationKind, RawOperation, Transaction},
     ParsedTransaction,
 };
-
-#[derive(Debug, Clone)]
-pub struct ParsedOperation<'a> {
-    pub table_index: usize,
-    pub kind: ParsedOperationKind<'a>,
-}
-
 pub type ParsedRow<'a> = Vec<Option<Cow<'a, str>>>;
-
-#[derive(Debug, Clone)]
-pub enum ParsedOperationKind<'a> {
-    Insert(ParsedRow<'a>),
-    Delete(ParsedRow<'a>),
-    Update {
-        old: ParsedRow<'a>,
-        new: ParsedRow<'a>,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ParsedValue {
-    String(String),
-    Number(Decimal),
-    Null,
-}
 
 #[derive(Debug, Clone)]
 struct TableInfo {
@@ -163,21 +137,6 @@ impl<'a, I: Iterator<Item = Transaction>> Iterator for Processor<'a, I> {
             commit_timestamp: transaction.commit_timestamp,
             operations,
         }))
-    }
-}
-
-impl FromStr for ParsedValue {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with('\'') {
-            Ok(ParsedValue::String(s[1..s.len() - 1].to_string()))
-        } else {
-            Ok(ParsedValue::Number(
-                s.parse()
-                    .map_err(|e| Error::NumberToDecimal(e, s.to_owned()))?,
-            ))
-        }
     }
 }
 

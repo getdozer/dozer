@@ -11,12 +11,12 @@ use crate::connector::{Error, Scn};
 use super::{LogManagerContent, RedoReader};
 
 #[derive(Debug, Clone, Copy)]
-pub struct LogMiner {
+pub(crate) struct LogMiner {
     pub fetch_batch_size: u32,
 }
 
 #[derive(Debug)]
-pub struct LogMinerIter<'a> {
+pub(crate) struct LogMinerIter<'a> {
     result_set: ResultSet<'a, LogManagerContent>,
     connection: &'a Connection,
 }

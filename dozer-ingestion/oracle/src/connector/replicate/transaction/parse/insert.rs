@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use fxhash::FxHashMap;
-use memchr::{memchr, memchr3, memchr3_iter, memmem};
+use memchr::{memchr, memchr3_iter, memmem};
 
 use super::ParsedRow;
 
