@@ -1,5 +1,6 @@
 use dozer_ingestion_connector::dozer_types::log::debug;
 use oracle::Connection;
+use std::collections::HashSet;
 
 use super::Error;
 
@@ -48,6 +49,27 @@ impl TableColumn {
             };
             columns.push(column);
         }
+
+        let mut table_names = HashSet::new();
+        for column in &columns {
+            table_names.insert(column.table_name.clone());
+        }
+        let first_column = &columns.first().clone();
+        if let Some(first_column) = first_column {
+            let owner = first_column.owner.clone();
+            for table_name in table_names.iter() {
+                columns.push(TableColumn {
+                    owner: owner.clone(),
+                    table_name: table_name.clone(),
+                    column_name: "ingested_at".to_string(),
+                    data_type: Some("TIMESTAMP".to_string()),
+                    nullable: Some("Y".to_string()),
+                    precision: None,
+                    scale: None,
+                });
+            }
+        }
+
         Ok(columns)
     }
 }

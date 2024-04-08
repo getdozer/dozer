@@ -516,7 +516,7 @@ impl Connector for AerospikeConnector {
                                     .iter()
                                     .map(|name| FieldDefinition {
                                         name: name.clone(),
-                                        typ: if name == "inserted_at" {
+                                        typ: if name == "lut" {
                                             FieldType::Timestamp
                                         } else if name == "PK" {
                                             FieldType::UInt
@@ -743,7 +743,7 @@ fn map_record(
         }
     }
 
-    if let Some((index, _)) = columns_map.get("inserted_at") {
+    if let Some((index, _)) = columns_map.get("lut") {
         // Create a NaiveDateTime from the timestamp
         let naive = NaiveDateTime::from_timestamp_millis(event.lut as i64)
             .ok_or(AerospikeConnectorError::InvalidTimestamp(event.lut as i64))?;

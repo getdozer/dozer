@@ -264,9 +264,18 @@ impl Connector {
         self.connection.execute(sql, &[])?;
 
         for ((table_index, table), schema) in tables.into_iter().zip(schemas) {
-            let columns = table.column_names.join(", ");
+            let columns = table
+                .column_names
+                .into_iter()
+                .filter(|s| s != "ingested_at")
+                .map(|s| format!("\"{s}\""))
+                .collect::<Vec<String>>()
+                .join(", ");
             let owner = table.schema.unwrap_or_else(|| self.username.clone());
-            let sql = format!("SELECT {} FROM {}.{}", columns, owner, table.name);
+            let sql = format!(
+                "SELECT {}, NULL as \"ingested_at\" FROM {}.{}",
+                columns, owner, table.name
+            );
             debug!("{}", sql);
             let rows = self.connection.query(&sql, &[])?;
 
