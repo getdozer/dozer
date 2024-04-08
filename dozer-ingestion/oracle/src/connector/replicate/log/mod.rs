@@ -135,6 +135,7 @@ fn log_reader_loop(
             } else {
                 // If there are more logs, we need to start from the next log's first change.
                 start_scn = log.next_change;
+                last_scn = start_scn - 1;
             }
         }
     }
