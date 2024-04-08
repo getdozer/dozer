@@ -267,13 +267,13 @@ impl Connector {
             let columns = table
                 .column_names
                 .into_iter()
-                .filter(|s| s != "ingested_at")
+                .filter(|s| s != "INGESTED_AT")
                 .map(|s| format!("\"{s}\""))
                 .collect::<Vec<String>>()
                 .join(", ");
             let owner = table.schema.unwrap_or_else(|| self.username.clone());
             let sql = format!(
-                "SELECT {}, NULL as \"ingested_at\" FROM {}.{}",
+                "SELECT {}, NULL as \"INGESTED_AT\" FROM {}.{}",
                 columns, owner, table.name
             );
             debug!("{}", sql);

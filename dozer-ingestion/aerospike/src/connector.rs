@@ -349,6 +349,9 @@ async fn event_request_handler(
     let event = json.into_inner();
     let state = data.into_inner();
 
+    let received_at = dozer_ingestion_connector::dozer_types::chrono::offset::Utc::now()
+        .with_timezone(&FixedOffset::east_opt(0).unwrap());
+
     trace!(target: "aerospike_http_server", "Event data: {:?}", event);
     // TODO: Handle delete
     if event.msg != "write" {
@@ -356,7 +359,7 @@ async fn event_request_handler(
     }
 
     let source_time = SourceTime::new(event.lut, 1);
-    let message = map_record(event, &state.tables_index_map);
+    let message = map_record(event, &state.tables_index_map, received_at);
 
     trace!(target: "aerospike_http_server", "Mapped message {:?}", message);
     match message {
@@ -390,6 +393,8 @@ async fn batch_event_request_handler(
     let events = json.into_inner();
     let state = data.into_inner();
 
+    let received_at = dozer_ingestion_connector::dozer_types::chrono::offset::Utc::now()
+        .with_timezone(&FixedOffset::east_opt(0).unwrap());
     debug!(target: "aerospike_http_server", "Aerospike events count {:?}", events.len());
     trace!(target: "aerospike_http_server", "Aerospike events {:?}", events);
 
@@ -398,7 +403,7 @@ async fn batch_event_request_handler(
         .into_iter()
         .filter_map(|e| {
             let lut = e.lut;
-            let msg = map_record(e, &state.tables_index_map).transpose()?;
+            let msg = map_record(e, &state.tables_index_map, received_at).transpose()?;
             min_lut = min_lut.min(lut);
             Some(msg)
         })
@@ -516,7 +521,7 @@ impl Connector for AerospikeConnector {
                                     .iter()
                                     .map(|name| FieldDefinition {
                                         name: name.clone(),
-                                        typ: if name == "lut" {
+                                        typ: if name == "lut" || name == "request_received_at" {
                                             FieldType::Timestamp
                                         } else if name == "PK" {
                                             FieldType::UInt
@@ -694,6 +699,7 @@ impl Connector for AerospikeConnector {
 fn map_record(
     event: AerospikeEvent,
     tables_map: &HashMap<String, TableIndexMap>,
+    received_at: DateTime<FixedOffset>,
 ) -> Result<Option<IngestionMessage>, AerospikeConnectorError> {
     let key: [Option<serde_json::Value>; 4] = match event.key.try_into() {
         Ok(key) => key,
@@ -753,6 +759,10 @@ fn map_record(
             DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc).fixed_offset();
 
         fields[*index] = Field::Timestamp(datetime);
+    }
+
+    if let Some((index, _)) = columns_map.get("request_received_at") {
+        fields[*index] = Field::Timestamp(received_at);
     }
 
     for bin in event.bins {

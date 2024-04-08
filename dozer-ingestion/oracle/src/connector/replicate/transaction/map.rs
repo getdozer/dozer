@@ -14,7 +14,7 @@ use super::parse::ParsedRow;
 pub fn map_row(row: ParsedRow, schema: &Schema) -> Result<Record, Error> {
     let mut values = vec![];
     for (field, value) in schema.fields.iter().zip(row) {
-        if field.name == "ingested_at" {
+        if field.name == "INGESTED_AT" {
             values.push(Field::Timestamp(
                 dozer_ingestion_connector::dozer_types::chrono::offset::Utc::now()
                     .with_timezone(&FixedOffset::east_opt(0).unwrap()),

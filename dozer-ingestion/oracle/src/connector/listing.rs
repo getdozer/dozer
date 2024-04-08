@@ -61,7 +61,7 @@ impl TableColumn {
                 columns.push(TableColumn {
                     owner: owner.clone(),
                     table_name: table_name.clone(),
-                    column_name: "ingested_at".to_string(),
+                    column_name: "INGESTED_AT".to_string(),
                     data_type: Some("TIMESTAMP".to_string()),
                     nullable: Some("Y".to_string()),
                     precision: None,
