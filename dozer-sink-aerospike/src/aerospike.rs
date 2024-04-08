@@ -512,9 +512,15 @@ unsafe fn init_key_single(
                 allocated_strings,
             ),
             Field::Null => {
-                error!("Primary key cannot be null SET: {:?} Namespace: {:?}", set, namespace);
-                unreachable!("Primary key cannot be null SET: {:?} Namespace: {:?}", set, namespace)
-            },
+                error!(
+                    "Primary key cannot be null SET: {:?} Namespace: {:?}",
+                    set, namespace
+                );
+                unreachable!(
+                    "Primary key cannot be null SET: {:?} Namespace: {:?}",
+                    set, namespace
+                )
+            }
             Field::Boolean(_) | Field::Json(_) | Field::Point(_) | Field::Float(_) => {
                 unreachable!("Unsupported primary key type. If this is reached, it means this record does not conform to the schema.")
             }

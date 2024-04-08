@@ -9,6 +9,7 @@ use dozer_core::petgraph::visit::{
 };
 use dozer_types::indexmap::IndexMap;
 
+use dozer_types::log::error;
 use dozer_types::models::sink::{AerospikeSet, AerospikeSinkTable};
 use dozer_types::thiserror;
 use dozer_types::types::{Field, Record, Schema, TableOperation};
@@ -881,11 +882,20 @@ impl DenormalizationState {
                             .should_update_at(key.clone(), version);
                         let target_schema = &self.node(target).as_schema;
                         let batch_read_index = if should_update {
-                            Some(new_batch.add_read_all(
-                                &target_schema.namespace,
-                                &target_schema.set,
-                                &key,
-                            )?)
+                            Some(
+                                new_batch
+                                    .add_read_all(
+                                        &target_schema.namespace,
+                                        &target_schema.set,
+                                        &key,
+                                    )
+                                    .map_err(|e| {
+                                        error!("Values: {:?}", values);
+                                        error!("key fields: {:?}", self.edge(edge).key_fields);
+                                        error!("target schema {:?}", target_schema);
+                                        e
+                                    })?,
+                            )
                         } else {
                             None
                         };
