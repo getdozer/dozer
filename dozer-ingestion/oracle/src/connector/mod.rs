@@ -156,12 +156,7 @@ impl Connector {
         // List all tables and columns.
         let schemas = tables
             .iter()
-            .map(|table| {
-                table
-                    .schema
-                    .clone()
-                    .unwrap_or_else(|| self.username.clone())
-            })
+            .map(|table| table.name.clone())
             .collect::<HashSet<_>>();
         let table_columns =
             listing::TableColumn::list(&self.connection, &schemas.into_iter().collect::<Vec<_>>())?;
@@ -201,21 +196,16 @@ impl Connector {
     ) -> Result<Vec<Result<SourceSchema, Error>>, Error> {
         let table_infos: Vec<_> = table_infos.into_iter().collect();
         // Collect all tables and columns.
-        let schemas = table_infos
+        let table_names = table_infos
             .iter()
-            .map(|table| {
-                table
-                    .schema
-                    .clone()
-                    .unwrap_or_else(|| self.username.clone())
-            })
+            .map(|table| table.name.clone())
             .collect::<HashSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        let table_columns = listing::TableColumn::list(&self.connection, &schemas)?;
+        let table_columns = listing::TableColumn::list(&self.connection, &table_names)?;
         let constraint_columns =
-            listing::ConstraintColumn::list(&self.connection, &schemas).unwrap();
-        let constraints = listing::Constraint::list(&self.connection, &schemas).unwrap();
+            listing::ConstraintColumn::list(&self.connection, &table_names).unwrap();
+        let constraints = listing::Constraint::list(&self.connection, &table_names).unwrap();
         let table_columns =
             join::join_columns_constraints(table_columns, constraint_columns, constraints);
 
