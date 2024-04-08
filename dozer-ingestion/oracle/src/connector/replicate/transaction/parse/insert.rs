@@ -160,8 +160,9 @@ impl<'a> DmlParser<'a> {
                     }
                 };
                 // Get column index
-                let index = self.column_indices.get(column_names[col_no])?;
-                ret[*index] = value;
+                if let Some(index) = self.column_indices.get(column_names[col_no]) {
+                    ret[*index] = value;
+                }
                 quoted_value_contains_quote = false;
 
                 col_no += 1;
@@ -282,8 +283,9 @@ impl<'a> DmlParser<'a> {
                     assert_ne!(s, UNSUPPORTED_TYPE);
                     assert_ne!(s, UNSUPPORTED);
                     if s != NULL {
-                        let pos = self.column_indices.get(column_name)?;
-                        values[*pos] = Some(unsafe { std::str::from_utf8_unchecked(s) }.into());
+                        if let Some(pos) = self.column_indices.get(column_name) {
+                            values[*pos] = Some(unsafe { std::str::from_utf8_unchecked(s) }.into());
+                        }
                     }
                     start = i + 1;
                     in_column_value = false;
@@ -331,17 +333,20 @@ impl<'a> DmlParser<'a> {
                 }
                 in_single_quotes = false;
                 if nesting_level == 0 {
-                    let pos = self.column_indices.get(column_name)?;
-                    values[*pos] = Some(if quoted_value_contains_quote {
-                        Cow::Owned(
-                            unsafe { std::str::from_utf8_unchecked(&self.remaining[start + 1..i]) }
+                    if let Some(pos) = self.column_indices.get(column_name) {
+                        values[*pos] = Some(if quoted_value_contains_quote {
+                            Cow::Owned(
+                                unsafe {
+                                    std::str::from_utf8_unchecked(&self.remaining[start + 1..i])
+                                }
                                 .replace("''", "'"),
-                        )
-                    } else {
-                        Cow::Borrowed(unsafe {
-                            std::str::from_utf8_unchecked(&self.remaining[start + 1..i])
-                        })
-                    });
+                            )
+                        } else {
+                            Cow::Borrowed(unsafe {
+                                std::str::from_utf8_unchecked(&self.remaining[start + 1..i])
+                            })
+                        });
+                    }
                     start = i + 1;
                     in_column_name = false;
                     in_column_value = false;
@@ -439,7 +444,7 @@ mod tests {
     fn test_parse_insert() {
         let sql = r#"insert into "DOZER"."TEST"("ID","NAME","TS","DATE","C1","C2","N") values ('1','Acme',TO_TIMESTAMP('2020-02-01 00:00:00.'),TO_DATE('2020-02-01 00:00:00','YYYY-MM-DD HH24:MI:SS'),NULL,NULL,'A''B');
         "#;
-        let column_indices = ["NAME", "ID", "TS", "C1", "C2", "DATE", "N"]
+        let column_indices = ["NAME", "ID", "TS", "C1", "DATE", "N"]
             .into_iter()
             .enumerate()
             .map(|(i, s)| (s.to_owned(), i))
@@ -451,7 +456,6 @@ mod tests {
                 Some("1".into()),
                 Some("TO_TIMESTAMP('2020-02-01 00:00:00.')".into()),
                 None,
-                None,
                 Some("TO_DATE('2020-02-01 00:00:00','YYYY-MM-DD HH24:MI:SS')".into()),
                 Some("A'B".into()),
             ])
@@ -461,7 +465,7 @@ mod tests {
     #[test]
     fn test_parse_update() {
         let string = r#"update "DOZER"."TEST" set "ID" = '1', "NAME" = 'Acme', "TS" = TO_TIMESTAMP('2020-02-01 00:00:00.'), "DATE" = TO_DATE('2020-02-01 00:00:00','YYYY-MM-DD HH24:MI:SS'), "C1" = NULL, "C2" = NULL, "N" = 'A''B' where "ID" = '2' and "NAME" = 'Corp' and "TS" = TO_TIMESTAMP('2020-02-01 00:00:00.') and "DATE" = TO_DATE('2020-02-01 00:00:00','YYYY-MM-DD HH24:MI:SS') and "C1" IS NULL and "C2" IS NULL" and "N" = 'A''B';"#;
-        let column_indices = ["NAME", "ID", "TS", "C1", "C2", "DATE", "N"]
+        let column_indices = ["NAME", "ID", "TS", "C1", "DATE", "N"]
             .into_iter()
             .enumerate()
             .map(|(i, s)| (s.to_owned(), i))
@@ -478,7 +482,6 @@ mod tests {
                     Some("2".into()),
                     Some("TO_TIMESTAMP('2020-02-01 00:00:00.')".into()),
                     None,
-                    None,
                     Some("TO_DATE('2020-02-01 00:00:00','YYYY-MM-DD HH24:MI:SS')".into()),
                     Some("A'B".into()),
                 ],
@@ -486,7 +489,6 @@ mod tests {
                     Some("Acme".into()),
                     Some("1".into()),
                     Some("TO_TIMESTAMP('2020-02-01 00:00:00.')".into()),
-                    None,
                     None,
                     Some("TO_DATE('2020-02-01 00:00:00','YYYY-MM-DD HH24:MI:SS')".into()),
                     Some("A'B".into()),
