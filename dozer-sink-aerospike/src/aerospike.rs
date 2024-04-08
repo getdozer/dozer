@@ -23,6 +23,7 @@ use dozer_types::{
     types::{DozerDuration, DozerPoint, Field, Schema},
 };
 
+use crate::AerospikeSinkError::NullPrimaryKey;
 use crate::{denorm_dag::Error, AerospikeSinkError};
 
 #[derive(Debug)]
@@ -516,10 +517,11 @@ unsafe fn init_key_single(
                     "Primary key cannot be null SET: {:?} Namespace: {:?}",
                     set, namespace
                 );
-                unreachable!(
-                    "Primary key cannot be null SET: {:?} Namespace: {:?}",
-                    set, namespace
-                )
+                // unreachable!(
+                //     "Primary key cannot be null SET: {:?} Namespace: {:?}",
+                //     set, namespace
+                // )
+                return Err(NullPrimaryKey);
             }
             Field::Boolean(_) | Field::Json(_) | Field::Point(_) | Field::Float(_) => {
                 unreachable!("Unsupported primary key type. If this is reached, it means this record does not conform to the schema.")

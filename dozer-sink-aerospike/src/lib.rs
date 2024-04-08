@@ -57,6 +57,8 @@ enum AerospikeSinkError {
     Aerospike(#[from] AerospikeError),
     #[error("No primary key found. Aerospike requires records to have a primary key")]
     NoPrimaryKey,
+    #[error("Primary key is null")]
+    NullPrimaryKey,
     #[error("Unsupported type for primary key: {0}")]
     UnsupportedPrimaryKeyType(FieldType),
     #[error("Type error: {0}")]
