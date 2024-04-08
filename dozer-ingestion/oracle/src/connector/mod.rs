@@ -374,13 +374,7 @@ impl Connector {
             })
         };
 
-        let mut recv = receiver.into_iter();
-        let first = processor
-            .process(recv.by_ref())
-            .find(|op| !op.as_ref().unwrap().operations.is_empty())
-            .unwrap()
-            .unwrap();
-        for transaction in recv.map(|_| Ok::<_, Error>(first.clone())) {
+        for transaction in processor.process(receiver) {
             let transaction = match transaction {
                 Ok(transaction) => transaction,
                 Err(e) => {
