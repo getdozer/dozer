@@ -2,12 +2,12 @@ use dozer_ingestion_connector::dozer_types::log::warn;
 
 use crate::connector::replicate::log::TransactionId;
 
-use super::{Operation, TransactionForest};
+use super::{RawOperation, TransactionForest};
 
 pub fn process_operation(
     xid: TransactionId,
     pxid: TransactionId,
-    operation: Operation,
+    operation: RawOperation,
     transaction_forest: &mut TransactionForest,
 ) {
     if xid == pxid {

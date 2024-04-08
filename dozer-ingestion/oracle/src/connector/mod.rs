@@ -12,9 +12,8 @@ use dozer_ingestion_connector::{
         log::{debug, error},
         models::ingestion_types::{IngestionMessage, OracleReplicator, TransactionInfo},
         node::OpIdentifier,
-        rust_decimal::{self, Decimal},
-        thiserror,
-        types::{FieldType, Operation, Schema},
+        rust_decimal, thiserror,
+        types::{Operation, Schema},
     },
     Ingestor, SourceSchema, TableIdentifier, TableInfo,
 };
@@ -33,7 +32,15 @@ pub struct Connector {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub(crate) enum ParseDateError {
+    #[error("Invalid date format: {0}")]
+    Chrono(#[from] chrono::ParseError),
+    #[error("Invalid oracle format")]
+    Oracle,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum Error {
     #[error("oracle error: {0:?}")]
     Oracle(#[from] oracle::Error),
     #[error("pdb not found: {0}")]
@@ -58,26 +65,16 @@ pub enum Error {
     DeleteFailedToMatch(String),
     #[error("update failed to match: {0}")]
     UpdateFailedToMatch(String),
-    #[error("field {0} not found")]
-    FieldNotFound(String),
     #[error("null value for non-nullable field {0}")]
     NullValue(String),
     #[error("cannot parse float: {0}")]
     ParseFloat(#[from] ParseFloatError),
     #[error("cannot parse date time from {1}: {0}")]
-    ParseDateTime(#[source] chrono::ParseError, String),
-    #[error("got overflow float number {0}")]
-    FloatOverflow(Decimal),
+    ParseDateTime(ParseDateError, String),
     #[error("got error when parsing uint {0}")]
-    ParseUIntFailed(Decimal),
+    ParseUIntFailed(String),
     #[error("got error when parsing int {0}")]
-    ParseIntFailed(Decimal),
-    #[error("type mismatch for {field}, expected {expected:?}, actual {actual:?}")]
-    TypeMismatch {
-        field: String,
-        expected: FieldType,
-        actual: FieldType,
-    },
+    ParseIntFailed(String),
 }
 
 /// `oracle`'s `ToSql` implementation for `&str` uses `NVARCHAR2` type, which Oracle expects to be UTF16 encoded by default.
@@ -377,7 +374,13 @@ impl Connector {
             })
         };
 
-        for transaction in processor.process(receiver) {
+        let mut recv = receiver.into_iter();
+        let first = processor
+            .process(recv.by_ref())
+            .find(|op| !op.as_ref().unwrap().operations.is_empty())
+            .unwrap()
+            .unwrap();
+        for transaction in recv.map(|_| Ok::<_, Error>(first.clone())) {
             let transaction = match transaction {
                 Ok(transaction) => transaction,
                 Err(e) => {

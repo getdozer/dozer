@@ -8,6 +8,8 @@ license = "AGPL-3.0-or-later"
 
 [dependencies]
 dozer-ingestion-connector = { path = "../connector" }
+fxhash = "0.2.1"
+memchr = "2.7.2"
 oracle = { version = "0.5.7", features = ["chrono", "stmt_without_lifetime"] }
 regex = "1.10.3"
 

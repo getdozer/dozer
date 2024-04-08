@@ -3,7 +3,7 @@ use oracle::Connection;
 use crate::connector::{Error, Scn};
 
 /// Given a log file name, a redo reader emits `LogManagerContent` rows
-pub trait RedoReader {
+pub(crate) trait RedoReader {
     type Iterator<'a>: Iterator<Item = Result<LogManagerContent, Error>>;
 
     /// Reads the `LogManagerContent` rows that have:
@@ -20,6 +20,6 @@ pub trait RedoReader {
 
 mod log_miner;
 
-pub use log_miner::LogMiner;
+pub(crate) use log_miner::LogMiner;
 
 use super::LogManagerContent;

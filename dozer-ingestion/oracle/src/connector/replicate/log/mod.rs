@@ -1,3 +1,4 @@
+use std::time::Instant;
 use std::{sync::mpsc::SyncSender, time::Duration};
 
 use dozer_ingestion_connector::dozer_types::log::debug;
@@ -31,6 +32,7 @@ pub struct LogManagerContent {
     pub rbasqn: u32,
     pub sql_redo: Option<String>,
     pub csf: u8,
+    pub received: Instant,
 }
 
 /// `ingestor` is only used for checking if ingestion has ended so we can break the loop.
