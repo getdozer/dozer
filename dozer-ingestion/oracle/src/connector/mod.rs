@@ -159,7 +159,12 @@ impl Connector {
         // List all tables and columns.
         let schemas = tables
             .iter()
-            .map(|table| table.name.clone())
+            .map(|table| {
+                table
+                    .schema
+                    .clone()
+                    .unwrap_or_else(|| self.username.clone())
+            })
             .collect::<HashSet<_>>();
         let table_columns =
             listing::TableColumn::list(&self.connection, &schemas.into_iter().collect::<Vec<_>>())?;
@@ -201,7 +206,12 @@ impl Connector {
         // Collect all tables and columns.
         let schemas = table_infos
             .iter()
-            .map(|table| table.name.clone())
+            .map(|table| {
+                table
+                    .schema
+                    .clone()
+                    .unwrap_or_else(|| self.username.clone())
+            })
             .collect::<HashSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
