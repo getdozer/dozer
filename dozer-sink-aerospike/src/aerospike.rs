@@ -511,7 +511,7 @@ unsafe fn init_key_single(
                 format!("PT{},{:09}S", duration.as_secs(), duration.subsec_nanos()),
                 allocated_strings,
             ),
-            Field::Null => unreachable!("Primary key cannot be null"),
+            Field::Null => unreachable!("Primary key cannot be null SET: {:?} Namespace: {:?}", set, namespace),
             Field::Boolean(_) | Field::Json(_) | Field::Point(_) | Field::Float(_) => {
                 unreachable!("Unsupported primary key type. If this is reached, it means this record does not conform to the schema.")
             }
