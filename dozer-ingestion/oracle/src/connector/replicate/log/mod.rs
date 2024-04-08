@@ -65,12 +65,7 @@ fn log_reader_loop(
     sender: SyncSender<LogManagerContent>,
     ingestor: &Ingestor,
 ) {
-    #[derive(Debug, Clone, Copy)]
-    struct LastScn {
-        sqn: u32,
-        scn: Scn,
-    }
-    let mut last_scn: Option<LastScn> = None;
+    let mut last_scn = start_scn - 1;
 
     loop {
         debug!(target: "oracle_replication", "Listing logs starting from SCN {}", start_scn);
@@ -97,19 +92,12 @@ fn log_reader_loop(
         'replicate_logs: while !logs.is_empty() {
             let log = logs.remove(0);
             debug!(target: "oracle_replication",
-                "Reading log {} ({}) ({}, {}), starting from {:?}",
+                "Reading log {} ({}) ({}, {}), starting from {}",
                 log.name, log.sequence, log.first_change, log.next_change, last_scn
             );
 
             let iterator = {
-                let last_scn = last_scn.and_then(|last_scn| {
-                    if last_scn.sqn == log.sequence {
-                        Some(last_scn.scn)
-                    } else {
-                        None
-                    }
-                });
-                match reader.read(connection, &log.name, last_scn, con_id) {
+                match reader.read(connection, &log.name, Some(last_scn), con_id) {
                     Ok(iterator) => iterator,
                     Err(e) => {
                         if ingestor.is_closed() {
@@ -132,10 +120,7 @@ fn log_reader_loop(
                         break 'replicate_logs;
                     }
                 };
-                last_scn = Some(LastScn {
-                    sqn: content.rbasqn,
-                    scn: content.scn,
-                });
+                last_scn = content.scn;
                 if sender.send(content).is_err() {
                     return;
                 }
