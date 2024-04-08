@@ -1,35 +1,39 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{borrow::Cow, collections::HashMap, str::FromStr};
 
 use dozer_ingestion_connector::dozer_types::{
     chrono::{DateTime, Utc},
     log::trace,
     rust_decimal::Decimal,
+    types::{Operation, Schema},
+};
+use fxhash::FxHashMap;
+
+use crate::connector::{
+    replicate::transaction::{map::map_row, parse::insert::DmlParser},
+    Error, Scn,
 };
 
-use crate::connector::{Error, Scn};
-
-use super::aggregate::{Operation, OperationKind, Transaction};
-
-#[derive(Debug, Clone)]
-pub struct ParsedTransaction {
-    pub commit_scn: Scn,
-    pub commit_timestamp: DateTime<Utc>,
-    pub operations: Vec<ParsedOperation>,
-}
+use super::{
+    aggregate::{OperationKind, RawOperation, Transaction},
+    ParsedTransaction,
+};
 
 #[derive(Debug, Clone)]
-pub struct ParsedOperation {
+pub struct ParsedOperation<'a> {
     pub table_index: usize,
-    pub kind: ParsedOperationKind,
+    pub kind: ParsedOperationKind<'a>,
 }
 
-pub type ParsedRow = HashMap<String, ParsedValue>;
+pub type ParsedRow<'a> = Vec<Option<Cow<'a, str>>>;
 
 #[derive(Debug, Clone)]
-pub enum ParsedOperationKind {
-    Insert(ParsedRow),
-    Delete(ParsedRow),
-    Update { old: ParsedRow, new: ParsedRow },
+pub enum ParsedOperationKind<'a> {
+    Insert(ParsedRow<'a>),
+    Delete(ParsedRow<'a>),
+    Update {
+        old: ParsedRow<'a>,
+        new: ParsedRow<'a>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -40,21 +44,42 @@ pub enum ParsedValue {
 }
 
 #[derive(Debug, Clone)]
+struct TableInfo {
+    index: usize,
+    column_indices: FxHashMap<String, usize>,
+    schema: Schema,
+}
+impl TableInfo {
+    fn new(index: usize, schema: Schema) -> Self {
+        let column_indices = schema
+            .fields
+            .iter()
+            .enumerate()
+            .map(|(i, field)| (field.name.clone(), i))
+            .collect();
+        Self {
+            index,
+            schema,
+            column_indices,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Parser {
-    insert_parser: insert::Parser,
-    delete_parser: delete::Parser,
-    update_parser: update::Parser,
-    table_pair_to_index: HashMap<(String, String), usize>,
+    table_infos: FxHashMap<(String, String), TableInfo>,
 }
 
 impl Parser {
-    pub fn new(table_pair_to_index: HashMap<(String, String), usize>) -> Self {
-        Self {
-            insert_parser: insert::Parser::new(),
-            delete_parser: delete::Parser::new(),
-            update_parser: update::Parser::new(),
-            table_pair_to_index,
-        }
+    pub fn new(
+        table_pair_to_index: HashMap<(String, String), usize>,
+        schemas: Vec<Schema>,
+    ) -> Self {
+        let table_infos = table_pair_to_index
+            .into_iter()
+            .map(|(k, v)| (k, TableInfo::new(v, schemas[v].clone())))
+            .collect();
+        Self { table_infos }
     }
 
     pub fn process<'a>(
@@ -67,9 +92,9 @@ impl Parser {
         }
     }
 
-    fn parse(&self, operation: Operation) -> Result<Option<ParsedOperation>, Error> {
+    fn parse(&self, operation: RawOperation) -> Result<Option<(usize, Operation)>, Error> {
         let table_pair = (operation.seg_owner, operation.table_name);
-        let Some(&table_index) = self.table_pair_to_index.get(&table_pair) else {
+        let Some(&table_info) = self.table_infos.get(&table_pair).as_ref() else {
             trace!(
                 "Ignoring operation on table {}.{}",
                 table_pair.0,
@@ -80,19 +105,35 @@ impl Parser {
 
         trace!(target: "oracle_replication_parser", "Parsing operation on table {}.{}", table_pair.0, table_pair.1);
 
-        let kind = match operation.kind {
-            OperationKind::Insert => ParsedOperationKind::Insert(
-                self.insert_parser.parse(&operation.sql_redo, &table_pair)?,
-            ),
-            OperationKind::Delete => ParsedOperationKind::Delete(
-                self.delete_parser.parse(&operation.sql_redo, &table_pair)?,
-            ),
+        let mut parser = DmlParser::new(&operation.sql_redo, &table_info.column_indices);
+        let op = match operation.kind {
+            OperationKind::Insert => {
+                let new_values = parser
+                    .parse_insert()
+                    .ok_or_else(|| Error::InsertFailedToMatch(operation.sql_redo.clone()))?;
+                Operation::Insert {
+                    new: map_row(new_values, &table_info.schema)?,
+                }
+            }
+            OperationKind::Delete => {
+                let old = parser
+                    .parse_delete()
+                    .ok_or_else(|| Error::DeleteFailedToMatch(operation.sql_redo.clone()))?;
+                Operation::Delete {
+                    old: map_row(old, &table_info.schema)?,
+                }
+            }
             OperationKind::Update => {
-                let (old, new) = self.update_parser.parse(&operation.sql_redo, &table_pair)?;
-                ParsedOperationKind::Update { old, new }
+                let (old, new) = parser
+                    .parse_update()
+                    .ok_or_else(|| Error::UpdateFailedToMatch(operation.sql_redo.clone()))?;
+                Operation::Update {
+                    old: map_row(old, &table_info.schema)?,
+                    new: map_row(new, &table_info.schema)?,
+                }
             }
         };
-        Ok(Some(ParsedOperation { table_index, kind }))
+        Ok(Some((table_info.index, op)))
     }
 }
 

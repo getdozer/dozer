@@ -1,15 +1,15 @@
 use std::{
     collections::{HashMap, HashSet},
     num::ParseFloatError,
-    sync::Arc,
-    time::Duration,
+    sync::{mpsc::channel, Arc},
+    time::{Duration, Instant},
 };
 
 use dozer_ingestion_connector::{
     dozer_types::{
-        chrono,
+        chrono::{self, DateTime},
         epoch::SourceTime,
-        log::{debug, error},
+        log::{debug, error, info},
         models::ingestion_types::{IngestionMessage, OracleReplicator, TransactionInfo},
         node::OpIdentifier,
         rust_decimal::{self, Decimal},
@@ -30,6 +30,14 @@ pub struct Connector {
     username: String,
     batch_size: usize,
     replicator: OracleReplicator,
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ParseDateError {
+    #[error("Invalid date format: {0}")]
+    Chrono(#[from] chrono::ParseError),
+    #[error("Invalid oracle format")]
+    Oracle,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -65,13 +73,13 @@ pub enum Error {
     #[error("cannot parse float: {0}")]
     ParseFloat(#[from] ParseFloatError),
     #[error("cannot parse date time from {1}: {0}")]
-    ParseDateTime(#[source] chrono::ParseError, String),
+    ParseDateTime(ParseDateError, String),
     #[error("got overflow float number {0}")]
     FloatOverflow(Decimal),
     #[error("got error when parsing uint {0}")]
-    ParseUIntFailed(Decimal),
+    ParseUIntFailed(String),
     #[error("got error when parsing int {0}")]
-    ParseIntFailed(Decimal),
+    ParseIntFailed(String),
     #[error("type mismatch for {field}, expected {expected:?}, actual {actual:?}")]
     TypeMismatch {
         field: String,
@@ -377,7 +385,13 @@ impl Connector {
             })
         };
 
-        for transaction in processor.process(receiver) {
+        let mut recv = receiver.into_iter();
+        let first = processor
+            .process(recv.by_ref())
+            .find(|op| !op.as_ref().unwrap().operations.is_empty())
+            .unwrap()
+            .unwrap();
+        for transaction in recv.map(|_| Ok::<_, Error>(first.clone())) {
             let transaction = match transaction {
                 Ok(transaction) => transaction,
                 Err(e) => {

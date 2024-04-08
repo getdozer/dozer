@@ -12,11 +12,11 @@ use crate::connector::{
 pub struct Transaction {
     pub commit_scn: Scn,
     pub commit_timestamp: DateTime<Utc>,
-    pub operations: Vec<Operation>,
+    pub operations: Vec<RawOperation>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Operation {
+pub struct RawOperation {
     pub seg_owner: String,
     pub table_name: String,
     pub kind: OperationKind,
@@ -52,7 +52,7 @@ impl Aggregator {
     }
 }
 
-type TransactionForest = forest::Forest<TransactionId, Vec<Operation>>;
+type TransactionForest = forest::Forest<TransactionId, Vec<RawOperation>>;
 
 #[derive(Debug)]
 struct Processor<I: Iterator<Item = LogManagerContent>> {
@@ -120,7 +120,7 @@ impl<I: Iterator<Item = LogManagerContent>> Iterator for Processor<I> {
             op::process_operation(
                 content.xid,
                 content.pxid,
-                Operation {
+                RawOperation {
                     seg_owner,
                     table_name,
                     kind,

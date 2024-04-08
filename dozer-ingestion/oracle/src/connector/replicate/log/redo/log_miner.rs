@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, time::Instant};
 
 use dozer_ingestion_connector::dozer_types::{
     chrono::{DateTime, Utc},
@@ -62,7 +62,6 @@ impl RedoReader for LogMiner {
                 STARTSCN => :start_scn,
                 OPTIONS =>
                     DBMS_LOGMNR.DICT_FROM_ONLINE_CATALOG +
-                    DBMS_LOGMNR.PRINT_PRETTY_SQL +
                     DBMS_LOGMNR.NO_ROWID_IN_STMT
             );
         END;";
@@ -74,7 +73,6 @@ impl RedoReader for LogMiner {
             DBMS_LOGMNR.START_LOGMNR(
                 OPTIONS =>
                     DBMS_LOGMNR.DICT_FROM_ONLINE_CATALOG +
-                    DBMS_LOGMNR.PRINT_PRETTY_SQL +
                     DBMS_LOGMNR.NO_ROWID_IN_STMT
             );
         END;";
@@ -162,6 +160,7 @@ impl RowValue for LogManagerContent {
             rbasqn,
             sql_redo,
             csf,
+            received: Instant::now(),
         })
     }
 }

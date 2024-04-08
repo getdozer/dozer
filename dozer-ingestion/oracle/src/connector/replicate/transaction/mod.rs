@@ -10,7 +10,7 @@ use crate::connector::{Error, Scn};
 use super::log::LogManagerContent;
 
 #[derive(Debug, Clone)]
-pub struct Transaction {
+pub struct ParsedTransaction {
     pub commit_scn: Scn,
     pub commit_timestamp: DateTime<Utc>,
     pub operations: Vec<(usize, Operation)>,
@@ -20,7 +20,6 @@ pub struct Transaction {
 pub struct Processor {
     aggregator: aggregate::Aggregator,
     parser: parse::Parser,
-    mapper: map::Mapper,
 }
 
 impl Processor {
@@ -31,19 +30,17 @@ impl Processor {
     ) -> Self {
         Self {
             aggregator: aggregate::Aggregator::new(start_scn),
-            parser: parse::Parser::new(table_pair_to_index),
-            mapper: map::Mapper::new(schemas),
+            parser: parse::Parser::new(table_pair_to_index, schemas),
         }
     }
 
     pub fn process<'a>(
         &'a self,
         iterator: impl IntoIterator<Item = LogManagerContent> + 'a,
-    ) -> impl Iterator<Item = Result<Transaction, Error>> + 'a {
+    ) -> impl Iterator<Item = Result<ParsedTransaction, Error>> + 'a {
         let csf = csf::process(iterator.into_iter());
         let transaction = self.aggregator.process(csf);
-        let parse = self.parser.process(transaction);
-        self.mapper.process(parse)
+        self.parser.process(transaction)
     }
 }
 
