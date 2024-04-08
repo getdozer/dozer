@@ -15,14 +15,17 @@ pub struct TableColumn {
 }
 
 impl TableColumn {
-    pub fn list(connection: &Connection, schemas: &[String]) -> Result<Vec<TableColumn>, Error> {
-        assert!(!schemas.is_empty());
+    pub fn list(
+        connection: &Connection,
+        table_names: &[String],
+    ) -> Result<Vec<TableColumn>, Error> {
+        assert!(!table_names.is_empty());
         let sql = "
         SELECT OWNER, TABLE_NAME, COLUMN_NAME, DATA_TYPE, NULLABLE, DATA_PRECISION, DATA_SCALE
         FROM ALL_TAB_COLUMNS
-        WHERE OWNER IN (SELECT COLUMN_VALUE FROM TABLE(:2))
+        WHERE TABLE_NAME IN (:2)
         ";
-        let schemas = super::string_collection(connection, schemas)?;
+        let schemas = super::string_collection(connection, table_names)?;
         debug!("{}, {}", sql, schemas);
         let rows = connection.query_as::<(
             String,
@@ -63,9 +66,9 @@ pub struct ConstraintColumn {
 impl ConstraintColumn {
     pub fn list(
         connection: &Connection,
-        schemas: &[String],
+        table_names: &[String],
     ) -> Result<Vec<ConstraintColumn>, Error> {
-        assert!(!schemas.is_empty());
+        assert!(!table_names.is_empty());
         let sql = "
         SELECT
             OWNER,
@@ -73,9 +76,9 @@ impl ConstraintColumn {
             TABLE_NAME,
             COLUMN_NAME
         FROM ALL_CONS_COLUMNS
-        WHERE OWNER IN (SELECT COLUMN_VALUE FROM TABLE(:2))
+        WHERE TABLE_NAME IN (:2)
         ";
-        let schemas = super::string_collection(connection, schemas)?;
+        let schemas = super::string_collection(connection, table_names)?;
         debug!("{}, {}", sql, schemas);
         let rows =
             connection.query_as::<(String, String, String, Option<String>)>(sql, &[&schemas])?;
@@ -110,7 +113,7 @@ impl Constraint {
             CONSTRAINT_NAME
         FROM ALL_CONSTRAINTS
         WHERE
-            OWNER IN (SELECT COLUMN_VALUE FROM TABLE(:2))
+            TABLE_NAME IN (SELECT COLUMN_VALUE FROM TABLE(:2))
             AND
             CONSTRAINT_TYPE = 'P'
         ";
