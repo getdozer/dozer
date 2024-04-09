@@ -196,6 +196,21 @@ pub fn decide_schema(
     let mut fields = vec![];
     let mut primary_index = vec![];
     for column_name in column_names {
+        if column_name == "INGESTED_AT" {
+            fields.push(FieldDefinition {
+                name: column_name.clone(),
+                typ: FieldType::Timestamp,
+                nullable: true,
+                source: SourceDefinition::Table {
+                    connection: connection.to_string(),
+                    name: table_name.clone(),
+                },
+                description: None,
+            });
+
+            continue;
+        }
+
         let Some(column) = columns.get_mut(column_name) else {
             return Err(Error::ColumnNotFound {
                 schema,
