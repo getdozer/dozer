@@ -629,12 +629,15 @@ impl Connector for AerospikeConnector {
             }
 
             loop {
-                if self.rewind(&client, &dc_name, &namespace).await? {
-                    info!("Aerospike replication configuration set successfully");
-                    break;
-                } else {
-                    warn!("Aerospike replication configuration set failed");
-                    tokio::time::sleep(Duration::from_secs(3)).await;
+                match self.rewind(&client, &dc_name, &namespace).await {
+                    Ok(_) => {
+                        info!("Aerospike replication configuration set successfully");
+                        break;
+                    }
+                    Err(e) => {
+                        warn!("Aerospike replication configuration set failed. Error {:?}", e);
+                        tokio::time::sleep(Duration::from_secs(3)).await;
+                    }
                 }
             }
         }
