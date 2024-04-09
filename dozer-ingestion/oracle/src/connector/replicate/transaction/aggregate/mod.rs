@@ -2,6 +2,7 @@ use dozer_ingestion_connector::dozer_types::{
     chrono::{DateTime, Utc},
     log::{trace, warn},
 };
+use fxhash::FxHashSet;
 
 use crate::connector::{
     replicate::log::{LogManagerContent, TransactionId},
@@ -33,11 +34,18 @@ pub enum OperationKind {
 #[derive(Debug, Clone)]
 pub struct Aggregator {
     start_scn: Scn,
+    table_pairs: FxHashSet<(String, String)>,
 }
 
 impl Aggregator {
-    pub fn new(start_scn: Scn) -> Self {
-        Self { start_scn }
+    pub fn new<'a>(
+        start_scn: Scn,
+        table_pairs_to_index: impl Iterator<Item = &'a (String, String)>,
+    ) -> Self {
+        Self {
+            start_scn,
+            table_pairs: table_pairs_to_index.cloned().collect(),
+        }
     }
 
     pub fn process(
@@ -45,6 +53,7 @@ impl Aggregator {
         iterator: impl Iterator<Item = LogManagerContent>,
     ) -> impl Iterator<Item = Transaction> {
         Processor {
+            table_pairs: self.table_pairs.clone(),
             iterator,
             start_scn: self.start_scn,
             transaction_forest: Default::default(),
@@ -58,6 +67,7 @@ type TransactionForest = forest::Forest<TransactionId, Vec<RawOperation>>;
 struct Processor<I: Iterator<Item = LogManagerContent>> {
     iterator: I,
     start_scn: Scn,
+    table_pairs: FxHashSet<(String, String)>,
     transaction_forest: TransactionForest,
 }
 
@@ -95,6 +105,12 @@ impl<I: Iterator<Item = LogManagerContent>> Iterator for Processor<I> {
             let Some(table_name) = content.table_name else {
                 continue;
             };
+            if !self
+                .table_pairs
+                .contains(&(seg_owner.clone(), table_name.clone()))
+            {
+                continue;
+            }
             let (kind, sql_redo) = match content.operation_code {
                 OP_CODE_INSERT => (
                     OperationKind::Insert,

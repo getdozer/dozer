@@ -29,7 +29,7 @@ impl Processor {
         schemas: Vec<Schema>,
     ) -> Self {
         Self {
-            aggregator: aggregate::Aggregator::new(start_scn),
+            aggregator: aggregate::Aggregator::new(start_scn, table_pair_to_index.keys()),
             parser: parse::Parser::new(table_pair_to_index, schemas),
         }
     }
