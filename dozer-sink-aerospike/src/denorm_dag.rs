@@ -339,6 +339,12 @@ impl CachedBatch {
             Self::Many(batch) => batch.clear(),
         }
     }
+    fn force_clear(&mut self) {
+        match self {
+            Self::One(batch) => batch.0.clear(),
+            Self::Many(batch) => batch.0.clear(),
+        }
+    }
 
     fn len(&self) -> usize {
         match self {
@@ -883,8 +889,12 @@ impl DenormalizationState {
         for node in self.dag.node_weights_mut() {
             // Only write if the last version is dirty (the newest version was changed by this
             // batch)
-            node.batch.write(&mut write_batch, &node.as_schema)?;
-            node.batch.clear();
+            if node.denormalize_to.is_some() {
+                node.batch.force_clear();
+            } else {
+                node.batch.write(&mut write_batch, &node.as_schema)?;
+                node.batch.clear();
+            }
         }
 
         write_batch.execute()?;
