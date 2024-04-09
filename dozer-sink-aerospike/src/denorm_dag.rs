@@ -874,6 +874,9 @@ impl DenormalizationState {
                             .copied()
                             .map(|i| value[i].clone())
                             .collect_vec();
+                        if key == [Field::Null] {
+                            continue;
+                        }
                         let (should_update, batch_idx) = self
                             .dag
                             .node_weight_mut(target)
