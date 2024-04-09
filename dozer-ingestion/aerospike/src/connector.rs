@@ -204,6 +204,10 @@ impl AerospikeConnector {
         namespace: &str,
     ) -> Result<bool, BoxedError> {
         unsafe {
+            debug!(
+                "Aerospike rewind request: dc_name: {}, namespace: {}",
+                dc_name, namespace
+            );
             let request = CString::new(format!(
                 "set-config:context=xdr;dc={dc_name};namespace={namespace};action=add;rewind=all"
             ))?;
@@ -220,6 +224,7 @@ impl AerospikeConnector {
             if let Some(status) = parts.get(1) {
                 Ok(status.replace('\n', "") == *"ok")
             } else {
+                warn!("Rewind response: {:?}", string);
                 Ok(false)
             }
         }
@@ -629,15 +634,12 @@ impl Connector for AerospikeConnector {
             }
 
             loop {
-                match self.rewind(&client, &dc_name, &namespace).await {
-                    Ok(_) => {
-                        info!("Aerospike replication configuration set successfully");
-                        break;
-                    }
-                    Err(e) => {
-                        warn!("Aerospike replication configuration set failed. Error {:?}", e);
-                        tokio::time::sleep(Duration::from_secs(3)).await;
-                    }
+                if self.rewind(&client, &dc_name, &namespace).await? {
+                    info!("Aerospike replication configuration set successfully");
+                    break;
+                } else {
+                    warn!("Aerospike replication configuration set failed");
+                    tokio::time::sleep(Duration::from_secs(3)).await;
                 }
             }
         }
