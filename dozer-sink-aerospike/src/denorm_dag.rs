@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString, NulError};
 use std::sync::Arc;
@@ -22,6 +23,30 @@ use crate::aerospike::{
 use crate::AerospikeSinkError;
 
 const MANY_LIST_BIN: &CStr = unsafe { CStr::from_bytes_with_nul_unchecked("data\0".as_bytes()) };
+const MAX_CACHED_RECORDS: usize = 100_000;
+
+#[derive(Debug, Clone)]
+struct Clock(Cell<usize>);
+
+impl Clock {
+    fn incr(&self) -> usize {
+        let value = self.0.get().saturating_add(1);
+        self.0.set(value);
+        value
+    }
+
+    fn decr(&self) -> usize {
+        let value = self.0.get().saturating_sub(1);
+        self.0.set(value);
+        value
+    }
+}
+
+impl Default for Clock {
+    fn default() -> Self {
+        Self(1.into())
+    }
+}
 
 #[derive(Debug, Clone)]
 struct CachedRecord {
@@ -31,7 +56,13 @@ struct CachedRecord {
 }
 
 #[derive(Debug, Clone, Default)]
-struct OneToOneBatch(IndexMap<Vec<Field>, SmallVec<[CachedRecord; 2]>>);
+struct OneToOneRecord {
+    versions: SmallVec<[CachedRecord; 2]>,
+    clock: Clock,
+}
+
+#[derive(Debug, Clone, Default)]
+struct OneToOneBatch(IndexMap<Vec<Field>, OneToOneRecord>);
 
 #[derive(Debug, Clone)]
 enum ManyOp {
@@ -49,8 +80,29 @@ struct ManyRecord {
 struct OneToManyEntry {
     base: Option<Vec<Vec<Field>>>,
     ops: Vec<ManyRecord>,
+    clock: Clock,
 }
 
+impl OneToManyEntry {
+    fn simplify(&mut self) {
+        let base = self.base.as_mut().unwrap();
+        // Apply ops
+        for version in self.ops.drain(..) {
+            for op in version.ops {
+                match op {
+                    ManyOp::Add(rec) => {
+                        base.push(rec);
+                    }
+                    ManyOp::Remove(rec) => {
+                        if let Some(pos) = base.iter().position(|r| r == &rec) {
+                            base.swap_remove(pos);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 #[derive(Debug, Clone, Default)]
 struct OneToManyBatch(IndexMap<Vec<Field>, OneToManyEntry>);
 
@@ -154,6 +206,7 @@ impl OneToManyBatch {
 
     fn get(&self, key: &[Field], version: usize) -> Option<impl Iterator<Item = Vec<Field>>> {
         let entry = self.0.get(key)?;
+        entry.clock.incr();
 
         Self::get_inner(entry, version)
     }
@@ -189,34 +242,38 @@ impl OneToManyBatch {
         record_batch: &mut WriteBatch,
         schema: &AerospikeSchema,
     ) -> Result<(), AerospikeSinkError> {
-        for (k, v) in self.0.drain(..) {
-            // We should always have a base, otherwise we can't do idempotent writes
-            let mut record = v.base.unwrap();
-            // Apply ops
-            for version in v.ops {
-                for op in version.ops {
-                    match op {
-                        ManyOp::Add(rec) => {
-                            record.push(rec);
-                        }
-                        ManyOp::Remove(rec) => {
-                            if let Some(pos) = record.iter().position(|r| r == &rec) {
-                                record.swap_remove(pos);
-                            }
-                        }
-                    }
-                }
-            }
+        for (k, v) in self.0.iter_mut() {
+            v.simplify();
             record_batch.add_write_list(
                 &schema.namespace,
                 &schema.set,
                 MANY_LIST_BIN,
-                &k,
+                k,
                 schema.bins.names(),
-                &record,
+                v.base.as_ref().unwrap(),
             )?;
         }
         Ok(())
+    }
+
+    fn clear(&mut self) {
+        let mut too_many = self.0.len().saturating_sub(MAX_CACHED_RECORDS);
+        loop {
+            self.0.retain(|_, rec| {
+                if !rec.ops.is_empty() {
+                    rec.simplify();
+                }
+                if too_many > 0 && rec.clock.decr() == 0 {
+                    too_many -= 1;
+                    return false;
+                }
+                true
+            });
+            too_many = self.0.len().saturating_sub(MAX_CACHED_RECORDS);
+            if too_many == 0 {
+                break;
+            }
+        }
     }
 }
 
@@ -238,7 +295,7 @@ impl CachedBatch {
                 .0
                 .iter()
                 .enumerate()
-                .filter_map(|(i, (k, v))| Some((i, k, v.last()?)))
+                .filter_map(|(i, (k, v))| Some((i, k, v.versions.last()?)))
                 .filter(|(_, _, v)| v.dirty)
                 .map(|(i, k, v)| DirtyRecord {
                     idx: i,
@@ -279,7 +336,7 @@ impl CachedBatch {
     fn clear(&mut self) {
         match self {
             Self::One(batch) => batch.clear(),
-            Self::Many(batch) => batch.0.clear(),
+            Self::Many(batch) => batch.clear(),
         }
     }
 
@@ -365,7 +422,7 @@ impl OneToOneBatch {
     ) -> usize {
         let entry = self.0.entry(key);
         let idx = entry.index();
-        let versions = entry.or_default();
+        let versions = &mut entry.or_default().versions;
         let record = CachedRecord {
             dirty,
             version,
@@ -392,8 +449,8 @@ impl OneToOneBatch {
     }
 
     fn insert_remote(&mut self, index: usize, value: Option<Vec<Field>>) {
-        let (_, versions) = self.0.get_index_mut(index).unwrap();
-        versions.insert(
+        let (_, record) = self.0.get_index_mut(index).unwrap();
+        record.versions.insert(
             0,
             CachedRecord {
                 dirty: false,
@@ -404,15 +461,23 @@ impl OneToOneBatch {
     }
 
     fn get<'a>(&'a self, key: &[Field], version: usize) -> Option<&'a CachedRecord> {
-        let versions = self.0.get(key)?;
+        let rec = self.0.get(key)?;
+        rec.clock.incr();
         // Find the last version thats <= version
-        versions.iter().take_while(|v| v.version <= version).last()
+        rec.versions
+            .iter()
+            .take_while(|v| v.version <= version)
+            .last()
     }
 
     fn get_index(&self, index: usize, version: usize) -> Option<&CachedRecord> {
-        let (_, versions) = self.0.get_index(index)?;
+        let (_, record) = self.0.get_index(index)?;
         // Find the last version thats <= version
-        versions.iter().take_while(|v| v.version <= version).last()
+        record
+            .versions
+            .iter()
+            .take_while(|v| v.version <= version)
+            .last()
     }
 
     /// Returns the index at which the entry for the given key exists,
@@ -420,12 +485,32 @@ impl OneToOneBatch {
     fn index_or_default(&mut self, key: Vec<Field>, version: usize) -> (usize, bool) {
         let entry = self.0.entry(key);
         let idx = entry.index();
-        let versions = entry.or_default();
+        let versions = &entry.or_default().versions;
         (idx, versions.first().is_some_and(|v| v.version <= version))
     }
 
     fn clear(&mut self) {
-        self.0.clear()
+        let mut too_many = self.0.len().saturating_sub(MAX_CACHED_RECORDS);
+        loop {
+            self.0.retain(|_, rec| {
+                let Some(mut last_version) = rec.versions.pop() else {
+                    too_many -= 1;
+                    return false;
+                };
+                last_version.dirty = false;
+                last_version.version = 0;
+                rec.versions = smallvec::smallvec![last_version];
+                if rec.clock.decr() == 0 {
+                    too_many -= 1;
+                    return false;
+                }
+                true
+            });
+            too_many = self.0.len().saturating_sub(MAX_CACHED_RECORDS);
+            if too_many == 0 {
+                break;
+            }
+        }
     }
 
     fn len(&self) -> usize {
@@ -437,20 +522,20 @@ impl OneToOneBatch {
         batch: &mut WriteBatch,
         schema: &AerospikeSchema,
     ) -> Result<(), AerospikeSinkError> {
-        for (key, dirty_record) in self.0.drain(..).filter_map(|(key, mut rec)| {
-            let last_version = rec.pop()?;
-            last_version.dirty.then_some((key, last_version.record))
+        for (key, dirty_record) in self.0.iter().filter_map(|(key, rec)| {
+            let last_version = rec.versions.last()?;
+            last_version.dirty.then_some((key, &last_version.record))
         }) {
             if let Some(dirty_record) = dirty_record {
                 batch.add_write(
                     &schema.namespace,
                     &schema.set,
                     schema.bins.names(),
-                    &key,
-                    &dirty_record,
+                    key,
+                    dirty_record,
                 )?;
             } else {
-                batch.add_remove(&schema.namespace, &schema.set, &key)?;
+                batch.add_remove(&schema.namespace, &schema.set, key)?;
             }
         }
         Ok(())
@@ -799,6 +884,7 @@ impl DenormalizationState {
             // Only write if the last version is dirty (the newest version was changed by this
             // batch)
             node.batch.write(&mut write_batch, &node.as_schema)?;
+            node.batch.clear();
         }
 
         write_batch.execute()?;
