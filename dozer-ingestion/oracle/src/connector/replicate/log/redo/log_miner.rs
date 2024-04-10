@@ -80,7 +80,7 @@ fn log_miner_stmt(
     let operation_code_filter = env::var("DOZER_ORACLE_LOG_MINER_OPERATION_CODE_FILTER").ok();
 
     if let Some(op) = operation_code_filter {
-        sql += format!(" AND {op} ");
+        sql += &format!(" AND {op} ");
     }
 
     if con_id.is_some() {
