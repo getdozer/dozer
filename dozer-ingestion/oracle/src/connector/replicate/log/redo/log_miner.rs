@@ -1,4 +1,6 @@
 use oracle::{Connection, Statement};
+use dozer_ingestion_connector::dozer_types::log::debug;
+use dozer_ingestion_connector::dozer_types::tracing::field::debug;
 
 use crate::connector::{replicate::log::listing::Logs, Result, Scn};
 
@@ -83,6 +85,8 @@ fn log_miner_stmt(
         .prefetch_rows(fetch_batch_size)
         .fetch_array_size(fetch_batch_size)
         .build()?;
+
+    debug!(target: "oracle_log_miner", "{sql} {start_scn} -> {end_scn}");
 
     stmt.bind("start_scn", &start_scn)?;
     stmt.bind("end_scn", &end_scn)?;

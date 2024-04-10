@@ -159,6 +159,7 @@ fn log_reader_loop(
             "Error creating log miner session: {}"
         );
 
+        let started = std::time::Instant::now();
         let mut stmt = ora_try!(
             ingestor,
             mining_session.stmt(con_id),
@@ -169,6 +170,7 @@ fn log_reader_loop(
             stmt.query_as(&[]),
             "Error fetching log contents: {0}"
         );
+        debug!(target: "oracle_log_miner", "Fetched log contents in {:?}", started.elapsed());
 
         for result in results {
             let r = ora_try!(ingestor, result, "error reading log entry: {}");
@@ -180,6 +182,8 @@ fn log_reader_loop(
                 return Ok(());
             };
         }
+
+        debug!(target: "oracle_log_miner", "Finished read log contents in {:?}", started.elapsed());
         std::thread::sleep(Duration::from_millis(config.poll_interval_in_milliseconds));
 
         let new_logs = ora_try!(
