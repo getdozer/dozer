@@ -1,3 +1,4 @@
+use std::env;
 use oracle::{Connection, Statement};
 use dozer_ingestion_connector::dozer_types::log::debug;
 use dozer_ingestion_connector::dozer_types::tracing::field::debug;
@@ -75,6 +76,12 @@ fn log_miner_stmt(
     fetch_batch_size: u32,
 ) -> Result<Statement> {
     let mut sql = "SELECT SCN, TIMESTAMP, XID, PXID, OPERATION_CODE, SEG_OWNER, TABLE_NAME, SQL_REDO, CSF FROM V$LOGMNR_CONTENTS WHERE SCN >= :start_scn AND SCN < :end_scn".to_owned();
+
+    let operation_code_filter = env::var("DOZER_ORACLE_LOG_MINER_OPERATION_CODE_FILTER").ok();
+
+    if let Some(op) = operation_code_filter {
+        sql += format!(" AND {op} ");
+    }
 
     if con_id.is_some() {
         sql += " AND SRC_CON_ID = :con_id";
