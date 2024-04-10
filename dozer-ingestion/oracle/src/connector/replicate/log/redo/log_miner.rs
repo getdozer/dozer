@@ -87,7 +87,7 @@ fn log_miner_stmt(
         .build()?;
 
     debug!(target: "oracle_log_miner", "{sql} {start_scn} -> {end_scn}");
-    debug!(target: "oracle_log_miner", "Difference:  {diff}", end_scn - start_scn);
+    debug!(target: "oracle_log_miner", "Difference:  {:?}", end_scn - start_scn);
 
     stmt.bind("start_scn", &start_scn)?;
     stmt.bind("end_scn", &end_scn)?;
