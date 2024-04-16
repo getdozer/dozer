@@ -280,6 +280,7 @@ impl OracleSinkFactory {
                 FieldType::UInt => "NUMBER(20)",
                 FieldType::U128 => unimplemented!(),
                 FieldType::Int => "NUMBER(20)",
+                FieldType::Int8 => unimplemented!(),
                 FieldType::I128 => unimplemented!(),
                 // Should this be BINARY_DOUBLE?
                 FieldType::Float => "NUMBER",

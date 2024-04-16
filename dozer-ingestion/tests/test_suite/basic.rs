@@ -293,6 +293,9 @@ fn assert_record_matches_schema(record: &Record, schema: &Schema, only_match_pk:
             FieldType::Int => {
                 assert!(value.as_int().is_some())
             }
+            FieldType::Int8 => {
+                assert!(value.as_int().is_some())
+            }
             FieldType::I128 => {
                 assert!(value.as_i128().is_some())
             }

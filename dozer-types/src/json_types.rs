@@ -108,6 +108,7 @@ pub fn field_to_json_value(field: Field) -> JsonValue {
         Field::UInt(n) => n.into(),
         Field::U128(n) => n.to_string().into(),
         Field::Int(n) => n.into(),
+        Field::Int8(n) => n.into(),
         Field::I128(n) => n.to_string().into(),
         Field::Float(n) => n.0.into(),
         Field::Boolean(b) => b.into(),

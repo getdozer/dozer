@@ -49,6 +49,7 @@ fn get_count(count: u64, return_type: Option<FieldType>) -> Result<Field, Pipeli
             FieldType::UInt => Ok(Field::UInt(count)),
             FieldType::U128 => Ok(Field::U128(count as u128)),
             FieldType::Int => Ok(Field::Int(count as i64)),
+            FieldType::Int8 => Ok(Field::Int8(count as i8)),
             FieldType::I128 => Ok(Field::I128(count as i128)),
             FieldType::Float => Ok(Field::Float(OrderedFloat::from(count as f64))),
             FieldType::Decimal => Ok(Field::Decimal(calculate_err_type!(

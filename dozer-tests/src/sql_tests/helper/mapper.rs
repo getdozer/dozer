@@ -211,6 +211,7 @@ fn get_record_from_json(data: String, schema: &Schema) -> Record {
         let value = match field_definition.typ {
             FieldType::UInt
             | FieldType::Int
+            | FieldType::Int8
             | FieldType::Float
             | FieldType::Boolean
             | FieldType::String

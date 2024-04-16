@@ -62,6 +62,7 @@ pub fn evaluate_py_udf(
             FieldType::UInt => Field::UInt(res.extract::<u64>()?),
             FieldType::U128 => Field::U128(res.extract::<u128>()?),
             FieldType::Int => Field::Int(res.extract::<i64>()?),
+            FieldType::Int8 => Field::Int8(res.extract::<i8>()?),
             FieldType::I128 => Field::I128(res.extract::<i128>()?),
             FieldType::Float => Field::Float(OrderedFloat::from(res.extract::<f64>()?)),
             FieldType::Boolean => Field::Boolean(res.extract::<bool>()?),

@@ -87,6 +87,17 @@ impl Aggregator for MinAppendOnlyAggregator {
                             self.update_state(Field::Int(new_val));
                         }
                     }
+                    FieldType::Int8 => {
+                        let new_val = calculate_err_field!(val.to_int8(), MinAppendOnly, val);
+                        let min_val = match cur_min {
+                            Field::Null => i8::MAX,
+                            _ => calculate_err_field!(cur_min.to_int8(), MinAppendOnly, val),
+                        };
+
+                        if new_val < min_val {
+                            self.update_state(Field::Int8(new_val));
+                        }
+                    }
                     FieldType::I128 => {
                         let new_val = calculate_err_field!(val.to_i128(), MinAppendOnly, val);
                         let min_val = match cur_min {

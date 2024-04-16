@@ -477,6 +477,9 @@ unsafe fn init_key_single(
             Field::Int(v) => {
                 as_key_init_int64(key, namespace.as_ptr(), set.as_ptr(), *v);
             }
+            Field::Int8(v) => {
+                as_key_init_int64(key, namespace.as_ptr(), set.as_ptr(), (*v).into());
+            }
             Field::U128(v) => set_str_key(key, namespace, set, v.to_string(), allocated_strings),
             Field::I128(v) => set_str_key(key, namespace, set, v.to_string(), allocated_strings),
             Field::Decimal(v) => set_str_key(key, namespace, set, v.to_string(), allocated_strings),
@@ -553,6 +556,13 @@ pub(crate) unsafe fn new_record_map(
             }
             Field::Int(v) => {
                 as_orderedmap_set(map, key, check_alloc(as_integer_new(*v)) as *const as_val);
+            }
+            Field::Int8(v) => {
+                as_orderedmap_set(
+                    map,
+                    key,
+                    check_alloc(as_integer_new((*v).into())) as *const as_val,
+                );
             }
             Field::I128(v) => {
                 map_set_str(map, key, v, allocated_strings);
@@ -661,6 +671,9 @@ pub(crate) unsafe fn init_batch_write_operations(
             }
             Field::Int(v) => {
                 as_operations_add_write_int64(ops, name, *v);
+            }
+            Field::Int8(v) => {
+                as_operations_add_write_int64(ops, name, (*v).into());
             }
             Field::I128(v) => {
                 set_operation_str(ops, name, v.to_string(), allocated_strings);
@@ -804,6 +817,11 @@ fn parse_val(
             dozer_types::types::FieldType::Int => {
                 map(val, as_val_type_e_AS_INTEGER, |v: &as_integer| {
                     Some(Field::Int(v.value))
+                })
+            }
+            dozer_types::types::FieldType::Int8 => {
+                map(val, as_val_type_e_AS_INTEGER, |v: &as_integer| {
+                    Some(Field::Int8(v.value as i8))
                 })
             }
             dozer_types::types::FieldType::I128 => {

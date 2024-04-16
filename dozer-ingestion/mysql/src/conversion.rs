@@ -193,6 +193,7 @@ impl<'a> IntoField<'a> for Value {
                 FieldType::UInt => Field::UInt(from_value_opt::<u64>(value)?),
                 FieldType::U128 => Field::U128(from_value_opt::<u128>(value)?),
                 FieldType::Int => Field::Int(from_value_opt::<i64>(value)?),
+                FieldType::Int8 => Field::Int8(from_value_opt::<i8>(value)?),
                 FieldType::I128 => Field::I128(from_value_opt::<i128>(value)?),
                 FieldType::Float => Field::Float(from_value_opt::<f64>(value)?.into()),
                 FieldType::Boolean => Field::Boolean(from_value_opt::<bool>(value)?),

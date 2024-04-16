@@ -73,6 +73,7 @@ macro_rules! define_math_operator {
                     Field::UInt(_)
                     | Field::U128(_)
                     | Field::Int(_)
+                    | Field::Int8(_)
                     | Field::I128(_)
                     | Field::Float(_)
                     | Field::Boolean(_)
@@ -155,6 +156,7 @@ macro_rules! define_math_operator {
                     Field::UInt(_)
                     | Field::U128(_)
                     | Field::Int(_)
+                    | Field::Int8(_)
                     | Field::I128(_)
                     | Field::Float(_)
                     | Field::Boolean(_)
@@ -203,6 +205,39 @@ macro_rules! define_math_operator {
                             ))),
                         }
                     }
+
+                    Field::Int8(v) => {
+                        let right_v = v as i64;
+                        return match $op {
+                            "/" | "%" => {
+                                if right_v == 0_i64 {
+                                    Err(PipelineError::SqlError(
+                                        OperationError::DivisionByZeroOrOverflow,
+                                    ))
+                                } else {
+                                    Ok(Field::Float($fct(
+                                        left_v,
+                                        OrderedFloat::<f64>::from_i64(right_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", right_v),
+                                                "f64".to_string(),
+                                            ),
+                                        )?,
+                                    )))
+                                }
+                            }
+                            &_ => Ok(Field::Float($fct(
+                                left_v,
+                                OrderedFloat::<f64>::from_i64(right_v).ok_or(
+                                    PipelineError::UnableToCast(
+                                        format!("{}", right_v),
+                                        "f64".to_string(),
+                                    ),
+                                )?,
+                            ))),
+                        };
+                    }
+
                     // left: Float, right: I128
                     Field::I128(right_v) => {
                         return match $op {
@@ -414,6 +449,45 @@ macro_rules! define_math_operator {
                             )),
                         };
                     }
+
+                    Field::Int8(v) => {
+                        let right_v = v as i64;
+                        return match $op {
+                            // When Int / Int division happens
+                            "/" => {
+                                if right_v == 0_i64 {
+                                    Err(PipelineError::SqlError(
+                                        OperationError::DivisionByZeroOrOverflow,
+                                    ))
+                                } else {
+                                    Ok(Field::Float($fct(
+                                        OrderedFloat::<f64>::from_i64(left_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", left_v),
+                                                "f64".to_string(),
+                                            ),
+                                        )?,
+                                        OrderedFloat::<f64>::from_i64(right_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", right_v),
+                                                "f64".to_string(),
+                                            ),
+                                        )?,
+                                    )))
+                                }
+                            }
+                            // When it's not division operation
+                            "+" | "-" | "*" | "%" => {
+                                Ok(Field::Int($fct(Wrapping(left_v), Wrapping(right_v)).0))
+                            }
+                            &_ => Err(PipelineError::InvalidTypeComparison(
+                                left_p,
+                                right_p,
+                                $op.to_string(),
+                            )),
+                        };
+                    }
+
                     // left: Int, right: I128
                     Field::I128(right_v) => {
                         return match $op {
@@ -623,6 +697,297 @@ macro_rules! define_math_operator {
                         $op.to_string(),
                     )),
                 },
+                Field::Int8(v) => {
+                    let left_v = v as i64;
+                    return match right_p {
+                        // left: Int, right: Int
+                        Field::Int(right_v) => {
+                            return match $op {
+                                // When Int / Int division happens
+                                "/" => {
+                                    if right_v == 0_i64 {
+                                        Err(PipelineError::SqlError(
+                                            OperationError::DivisionByZeroOrOverflow,
+                                        ))
+                                    } else {
+                                        Ok(Field::Float($fct(
+                                            OrderedFloat::<f64>::from_i64(left_v).ok_or(
+                                                PipelineError::UnableToCast(
+                                                    format!("{}", left_v),
+                                                    "f64".to_string(),
+                                                ),
+                                            )?,
+                                            OrderedFloat::<f64>::from_i64(right_v).ok_or(
+                                                PipelineError::UnableToCast(
+                                                    format!("{}", right_v),
+                                                    "f64".to_string(),
+                                                ),
+                                            )?,
+                                        )))
+                                    }
+                                }
+                                // When it's not division operation
+                                "+" | "-" | "*" | "%" => {
+                                    Ok(Field::Int($fct(Wrapping(left_v), Wrapping(right_v)).0))
+                                }
+                                &_ => Err(PipelineError::InvalidTypeComparison(
+                                    left_p,
+                                    right_p,
+                                    $op.to_string(),
+                                )),
+                            };
+                        }
+
+                        Field::Int8(v) => {
+                            let right_v = v as i64;
+                            return match $op {
+                                // When Int / Int division happens
+                                "/" => {
+                                    if right_v == 0_i64 {
+                                        Err(PipelineError::SqlError(
+                                            OperationError::DivisionByZeroOrOverflow,
+                                        ))
+                                    } else {
+                                        Ok(Field::Float($fct(
+                                            OrderedFloat::<f64>::from_i64(left_v).ok_or(
+                                                PipelineError::UnableToCast(
+                                                    format!("{}", left_v),
+                                                    "f64".to_string(),
+                                                ),
+                                            )?,
+                                            OrderedFloat::<f64>::from_i64(right_v).ok_or(
+                                                PipelineError::UnableToCast(
+                                                    format!("{}", right_v),
+                                                    "f64".to_string(),
+                                                ),
+                                            )?,
+                                        )))
+                                    }
+                                }
+                                // When it's not division operation
+                                "+" | "-" | "*" | "%" => {
+                                    Ok(Field::Int($fct(Wrapping(left_v), Wrapping(right_v)).0))
+                                }
+                                &_ => Err(PipelineError::InvalidTypeComparison(
+                                    left_p,
+                                    right_p,
+                                    $op.to_string(),
+                                )),
+                            };
+                        }
+
+                        // left: Int, right: I128
+                        Field::I128(right_v) => {
+                            return match $op {
+                                // When Int / I128 division happens
+                                "/" => {
+                                    if right_v == 0_i128 {
+                                        Err(PipelineError::SqlError(
+                                            OperationError::DivisionByZeroOrOverflow,
+                                        ))
+                                    } else {
+                                        Ok(Field::Float($fct(
+                                            OrderedFloat::<f64>::from_i64(left_v).ok_or(
+                                                PipelineError::UnableToCast(
+                                                    format!("{}", left_v),
+                                                    "f64".to_string(),
+                                                ),
+                                            )?,
+                                            OrderedFloat::<f64>::from_i128(right_v).ok_or(
+                                                PipelineError::UnableToCast(
+                                                    format!("{}", right_v),
+                                                    "f64".to_string(),
+                                                ),
+                                            )?,
+                                        )))
+                                    }
+                                }
+                                // When it's not division operation
+                                "+" | "-" | "*" | "%" => Ok(Field::I128(
+                                    $fct(Wrapping(left_v as i128), Wrapping(right_v)).0,
+                                )),
+                                &_ => Err(PipelineError::InvalidTypeComparison(
+                                    left_p,
+                                    right_p,
+                                    $op.to_string(),
+                                )),
+                            };
+                        }
+                        // left: Int, right: UInt
+                        Field::UInt(right_v) => {
+                            return match $op {
+                                // When Int / UInt division happens
+                                "/" => {
+                                    if right_v == 0_u64 {
+                                        Err(PipelineError::SqlError(
+                                            OperationError::DivisionByZeroOrOverflow,
+                                        ))
+                                    } else {
+                                        Ok(Field::Float($fct(
+                                            OrderedFloat::<f64>::from_i64(left_v).ok_or(
+                                                PipelineError::UnableToCast(
+                                                    format!("{}", left_v),
+                                                    "f64".to_string(),
+                                                ),
+                                            )?,
+                                            OrderedFloat::<f64>::from_u64(right_v).ok_or(
+                                                PipelineError::UnableToCast(
+                                                    format!("{}", right_v),
+                                                    "f64".to_string(),
+                                                ),
+                                            )?,
+                                        )))
+                                    }
+                                }
+                                // When it's not division operation
+                                "+" | "-" | "*" | "%" => Ok(Field::Int(
+                                    $fct(Wrapping(left_v), Wrapping(right_v as i64)).0,
+                                )),
+                                &_ => Err(PipelineError::InvalidTypeComparison(
+                                    left_p,
+                                    right_p,
+                                    $op.to_string(),
+                                )),
+                            };
+                        }
+                        // left: Int, right: U128
+                        Field::U128(right_v) => {
+                            return match $op {
+                                // When Int / U128 division happens
+                                "/" => {
+                                    if right_v == 0_u128 {
+                                        Err(PipelineError::SqlError(
+                                            OperationError::DivisionByZeroOrOverflow,
+                                        ))
+                                    } else {
+                                        Ok(Field::Float($fct(
+                                            OrderedFloat::<f64>::from_i64(left_v).ok_or(
+                                                PipelineError::UnableToCast(
+                                                    format!("{}", left_v),
+                                                    "f64".to_string(),
+                                                ),
+                                            )?,
+                                            OrderedFloat::<f64>::from_u128(right_v).ok_or(
+                                                PipelineError::UnableToCast(
+                                                    format!("{}", right_v),
+                                                    "f64".to_string(),
+                                                ),
+                                            )?,
+                                        )))
+                                    }
+                                }
+                                // When it's not division operation
+                                "+" | "-" | "*" | "%" => Ok(Field::I128(
+                                    $fct(Wrapping(left_v as i128), Wrapping(right_v as i128)).0,
+                                )),
+                                &_ => Err(PipelineError::InvalidTypeComparison(
+                                    left_p,
+                                    right_p,
+                                    $op.to_string(),
+                                )),
+                            };
+                        }
+                        // left: Int, right: Float
+                        Field::Float(right_v) => {
+                            return match $op {
+                                "/" | "%" => {
+                                    if right_v == 0_f64 {
+                                        Err(PipelineError::SqlError(
+                                            OperationError::DivisionByZeroOrOverflow,
+                                        ))
+                                    } else {
+                                        Ok(Field::Float($fct(
+                                            OrderedFloat::<f64>::from_i64(left_v).ok_or(
+                                                PipelineError::UnableToCast(
+                                                    format!("{}", left_v),
+                                                    "f64".to_string(),
+                                                ),
+                                            )?,
+                                            right_v,
+                                        )))
+                                    }
+                                }
+                                &_ => Ok(Field::Float($fct(
+                                    OrderedFloat::<f64>::from_i64(left_v).ok_or(
+                                        PipelineError::UnableToCast(
+                                            format!("{}", left_v),
+                                            "f64".to_string(),
+                                        ),
+                                    )?,
+                                    right_v,
+                                ))),
+                            }
+                        }
+
+                        // left: Int, right: Decimal
+                        Field::Decimal(right_v) => {
+                            return match $op {
+                                "/" => Ok(Field::Decimal(
+                                    Decimal::from_i64(left_v)
+                                        .ok_or(PipelineError::UnableToCast(
+                                            format!("{}", left_v),
+                                            "Decimal".to_string(),
+                                        ))?
+                                        .checked_div(right_v)
+                                        .ok_or(PipelineError::SqlError(
+                                            OperationError::DivisionByZeroOrOverflow,
+                                        ))?,
+                                )),
+                                "%" => Ok(Field::Decimal(
+                                    Decimal::from_i64(left_v)
+                                        .ok_or(PipelineError::UnableToCast(
+                                            format!("{}", left_v),
+                                            "Decimal".to_string(),
+                                        ))?
+                                        .checked_rem(right_v)
+                                        .ok_or(PipelineError::SqlError(
+                                            OperationError::ModuloByZeroOrOverflow,
+                                        ))?,
+                                )),
+                                "*" => Ok(Field::Decimal(
+                                    Decimal::from_i64(left_v)
+                                        .ok_or(PipelineError::UnableToCast(
+                                            format!("{}", left_v),
+                                            "Decimal".to_string(),
+                                        ))?
+                                        .checked_mul(right_v)
+                                        .ok_or(PipelineError::SqlError(
+                                            OperationError::MultiplicationOverflow,
+                                        ))?,
+                                )),
+                                "+" | "-" => Ok(Field::Decimal($fct(
+                                    Decimal::from_i64(left_v).ok_or(
+                                        PipelineError::UnableToCast(
+                                            format!("{}", left_v),
+                                            "Decimal".to_string(),
+                                        ),
+                                    )?,
+                                    right_v,
+                                ))),
+                                &_ => Err(PipelineError::InvalidTypeComparison(
+                                    left_p,
+                                    right_p,
+                                    $op.to_string(),
+                                )),
+                            }
+                        }
+                        // left: Int, right: Null
+                        Field::Null => Ok(Field::Null),
+                        Field::Boolean(_)
+                        | Field::String(_)
+                        | Field::Text(_)
+                        | Field::Binary(_)
+                        | Field::Timestamp(_)
+                        | Field::Date(_)
+                        | Field::Json(_)
+                        | Field::Point(_)
+                        | Field::Duration(_) => Err(PipelineError::InvalidTypeComparison(
+                            left_p,
+                            right_p,
+                            $op.to_string(),
+                        )),
+                    };
+                }
                 Field::I128(left_v) => match right_p {
                     // left: I128, right: Int
                     Field::Int(right_v) => {
@@ -642,6 +1007,42 @@ macro_rules! define_math_operator {
                                             ),
                                         )?,
                                         OrderedFloat::<f64>::from_i64(right_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", right_v),
+                                                "f64".to_string(),
+                                            ),
+                                        )?,
+                                    )))
+                                }
+                            }
+                            // When it's not division operation
+                            "+" | "-" | "*" | "%" => Ok(Field::I128(
+                                $fct(Wrapping(left_v), Wrapping(right_v as i128)).0,
+                            )),
+                            &_ => Err(PipelineError::InvalidTypeComparison(
+                                left_p,
+                                right_p,
+                                $op.to_string(),
+                            )),
+                        };
+                    }
+                    Field::Int8(right_v) => {
+                        return match $op {
+                            // When I128 / Int division happens
+                            "/" => {
+                                if right_v == 0_i8 {
+                                    Err(PipelineError::SqlError(
+                                        OperationError::DivisionByZeroOrOverflow,
+                                    ))
+                                } else {
+                                    Ok(Field::Float($fct(
+                                        OrderedFloat::<f64>::from_i128(left_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", left_v),
+                                                "f64".to_string(),
+                                            ),
+                                        )?,
+                                        OrderedFloat::<f64>::from_i64(right_v as i64).ok_or(
                                             PipelineError::UnableToCast(
                                                 format!("{}", right_v),
                                                 "f64".to_string(),
@@ -886,6 +1287,43 @@ macro_rules! define_math_operator {
                             )),
                         };
                     }
+                    Field::Int8(right_v) => {
+                        return match $op {
+                            // When UInt / Int division happens
+                            "/" => {
+                                if right_v == 0_i8 {
+                                    Err(PipelineError::SqlError(
+                                        OperationError::DivisionByZeroOrOverflow,
+                                    ))
+                                } else {
+                                    Ok(Field::Float(OrderedFloat($fct(
+                                        f64::from_u64(left_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", left_v),
+                                                "f64".to_string(),
+                                            ),
+                                        )?,
+                                        f64::from_i64(right_v as i64).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", right_v),
+                                                "f64".to_string(),
+                                            ),
+                                        )?,
+                                    ))))
+                                }
+                            }
+                            // When it's not division operation
+                            "+" | "-" | "*" | "%" => Ok(Field::Int(
+                                $fct(Wrapping(left_v as i64), Wrapping(right_v as i64)).0,
+                            )),
+                            &_ => Err(PipelineError::InvalidTypeComparison(
+                                left_p,
+                                right_p,
+                                $op.to_string(),
+                            )),
+                        };
+                    }
+
                     // left: UInt, right: I128
                     Field::I128(right_v) => {
                         return match $op {
@@ -1156,6 +1594,44 @@ macro_rules! define_math_operator {
                             )),
                         };
                     }
+
+                    Field::Int8(right_v) => {
+                        return match $op {
+                            // When U128 / Int division happens
+                            "/" => {
+                                if right_v == 0_i8 {
+                                    Err(PipelineError::SqlError(
+                                        OperationError::DivisionByZeroOrOverflow,
+                                    ))
+                                } else {
+                                    Ok(Field::Float(OrderedFloat($fct(
+                                        f64::from_u128(left_v).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", left_v),
+                                                "f64".to_string(),
+                                            ),
+                                        )?,
+                                        f64::from_i64(right_v as i64).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", right_v),
+                                                "f64".to_string(),
+                                            ),
+                                        )?,
+                                    ))))
+                                }
+                            }
+                            // When it's not division operation
+                            "+" | "-" | "*" | "%" => Ok(Field::I128(
+                                $fct(Wrapping(left_v as i128), Wrapping(right_v as i128)).0,
+                            )),
+                            &_ => Err(PipelineError::InvalidTypeComparison(
+                                left_p,
+                                right_p,
+                                $op.to_string(),
+                            )),
+                        };
+                    }
+
                     // left: U128, right: I128
                     Field::I128(right_v) => {
                         return match $op {
@@ -1384,6 +1860,28 @@ macro_rules! define_math_operator {
                                         ))
                                     }
                                 }
+                                Field::Int8(v) => {
+                                    let right_v = v as i64;
+                                    if right_v == 0_i64 {
+                                        Err(PipelineError::SqlError(
+                                            OperationError::DivisionByZeroOrOverflow,
+                                        ))
+                                    } else {
+                                        Ok(Field::Decimal(
+                                            left_v
+                                                .checked_div(Decimal::from_i64(right_v).ok_or(
+                                                    PipelineError::UnableToCast(
+                                                        format!("{}", left_v),
+                                                        "Decimal".to_string(),
+                                                    ),
+                                                )?)
+                                                .ok_or(PipelineError::SqlError(
+                                                    OperationError::DivisionByZeroOrOverflow,
+                                                ))?,
+                                        ))
+                                    }
+                                }
+
                                 // left: Decimal, right: I128
                                 Field::I128(right_v) => {
                                     if right_v == 0_i128 {
@@ -1506,6 +2004,18 @@ macro_rules! define_math_operator {
                                             OperationError::ModuloByZeroOrOverflow,
                                         ))?,
                                 )),
+                                Field::Int8(right_v) => Ok(Field::Decimal(
+                                    left_v
+                                        .checked_rem(Decimal::from_i64(right_v as i64).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", left_v),
+                                                "Decimal".to_string(),
+                                            ),
+                                        )?)
+                                        .ok_or(PipelineError::SqlError(
+                                            OperationError::ModuloByZeroOrOverflow,
+                                        ))?,
+                                )),
                                 // left: Decimal, right: I128
                                 Field::I128(right_v) => Ok(Field::Decimal(
                                     left_v
@@ -1596,6 +2106,18 @@ macro_rules! define_math_operator {
                                             OperationError::MultiplicationOverflow,
                                         ))?,
                                 )),
+                                Field::Int8(right_v) => Ok(Field::Decimal(
+                                    left_v
+                                        .checked_mul(Decimal::from_i64(right_v as i64).ok_or(
+                                            PipelineError::UnableToCast(
+                                                format!("{}", left_v),
+                                                "Decimal".to_string(),
+                                            ),
+                                        )?)
+                                        .ok_or(PipelineError::SqlError(
+                                            OperationError::MultiplicationOverflow,
+                                        ))?,
+                                )),
                                 // left: Decimal, right: I128
                                 Field::I128(right_v) => Ok(Field::Decimal(
                                     left_v
@@ -1677,6 +2199,15 @@ macro_rules! define_math_operator {
                                 Field::Int(right_v) => Ok(Field::Decimal($fct(
                                     left_v,
                                     Decimal::from_i64(right_v).ok_or(
+                                        PipelineError::UnableToCast(
+                                            format!("{}", left_v),
+                                            "Decimal".to_string(),
+                                        ),
+                                    )?,
+                                ))),
+                                Field::Int8(right_v) => Ok(Field::Decimal($fct(
+                                    left_v,
+                                    Decimal::from_i64(right_v as i64).ok_or(
                                         PipelineError::UnableToCast(
                                             format!("{}", left_v),
                                             "Decimal".to_string(),
@@ -1785,6 +2316,8 @@ pub fn evaluate_plus(
         Field::UInt(v) => Ok(Field::UInt(v)),
         Field::U128(v) => Ok(Field::U128(v)),
         Field::Int(v) => Ok(Field::Int(v)),
+        Field::Int8(v) => Ok(Field::Int8(v)),
+
         Field::I128(v) => Ok(Field::I128(v)),
         Field::Float(v) => Ok(Field::Float(v)),
         Field::Decimal(v) => Ok(Field::Decimal(v)),
@@ -1814,6 +2347,7 @@ pub fn evaluate_minus(
         Field::UInt(v) => Ok(Field::UInt(v)),
         Field::U128(v) => Ok(Field::U128(v)),
         Field::Int(v) => Ok(Field::Int(-v)),
+        Field::Int8(v) => Ok(Field::Int8(-v)),
         Field::I128(v) => Ok(Field::I128(-v)),
         Field::Float(v) => Ok(Field::Float(-v)),
         Field::Decimal(v) => Ok(Field::Decimal(v.neg())),

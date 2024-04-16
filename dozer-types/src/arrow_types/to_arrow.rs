@@ -153,6 +153,7 @@ pub fn map_field_type(typ: FieldType) -> DataType {
         FieldType::UInt => DataType::UInt64,
         FieldType::U128 => DataType::Utf8,
         FieldType::Int => DataType::Int64,
+        FieldType::Int8 => DataType::Int64,
         FieldType::I128 => DataType::Utf8,
         FieldType::Float => DataType::Float64,
         FieldType::Boolean => DataType::Boolean,

@@ -65,6 +65,16 @@ macro_rules! define_comparison {
                             })?;
                         Ok(Field::Boolean($function(left_v, right_v_b)))
                     }
+                    Field::Int8(right_v) => {
+                        let right_v_b =
+                            bool::from_str(right_v.to_string().as_str()).map_err(|_| {
+                                PipelineError::UnableToCast(
+                                    format!("{}", right_v),
+                                    "Bool".to_string(),
+                                )
+                            })?;
+                        Ok(Field::Boolean($function(left_v, right_v_b)))
+                    }
                     // left: Bool, right: I128
                     Field::I128(right_v) => {
                         let right_v_b =
@@ -109,6 +119,8 @@ macro_rules! define_comparison {
                 Field::Int(left_v) => match right_p {
                     // left: Int, right: Int
                     Field::Int(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
+                    Field::Int8(right_v) => Ok(Field::Boolean($function(left_v, right_v as i64))),
+
                     // left: Int, right: I128
                     Field::I128(right_v) => Ok(Field::Boolean($function(left_v as i128, right_v))),
                     // left: Int, right: UInt
@@ -154,9 +166,66 @@ macro_rules! define_comparison {
                         $op.to_string(),
                     )),
                 },
+                Field::Int8(left_v) => match right_p {
+                    // left: Int, right: Int
+                    Field::Int(right_v) => Ok(Field::Boolean($function(left_v as i64, right_v))),
+                    Field::Int8(right_v) => {
+                        Ok(Field::Boolean($function(left_v as i64, right_v as i64)))
+                    }
+
+                    // left: Int, right: I128
+                    Field::I128(right_v) => Ok(Field::Boolean($function(left_v as i128, right_v))),
+                    // left: Int, right: UInt
+                    Field::UInt(right_v) => {
+                        Ok(Field::Boolean($function(left_v as i64, right_v as i64)))
+                    }
+                    // left: Int, right: U128
+                    Field::U128(right_v) => {
+                        Ok(Field::Boolean($function(left_v as i64, right_v as i64)))
+                    }
+                    // left: Int, right: Float
+                    Field::Float(right_v) => Ok(Field::Boolean($function(left_v as f64, *right_v))),
+                    // left: Int, right: Decimal
+                    Field::Decimal(right_v) => {
+                        let left_v_d =
+                            Decimal::from_i64(left_v as i64).ok_or(PipelineError::UnableToCast(
+                                format!("{}", left_v),
+                                "Decimal".to_string(),
+                            ))?;
+                        Ok(Field::Boolean($function(left_v_d, right_v)))
+                    }
+                    // left: Int, right: String or Text
+                    Field::String(right_v) | Field::Text(right_v) => {
+                        let right_v_b = i64::from_str(right_v.as_str()).map_err(|_| {
+                            PipelineError::UnableToCast(format!("{}", right_v), "Int".to_string())
+                        })?;
+                        Ok(Field::Boolean($function(left_v as i64, right_v_b)))
+                    }
+                    // left: Int, right: Duration
+                    Field::Duration(right_v) => {
+                        let left_v_b = DozerDuration(
+                            Duration::from_nanos(left_v as u64),
+                            TimeUnit::Nanoseconds,
+                        );
+                        Ok(Field::Boolean($function(left_v_b, right_v)))
+                    }
+                    // left: Int, right: Null
+                    Field::Null => Ok(Field::Null),
+                    Field::Boolean(_)
+                    | Field::Binary(_)
+                    | Field::Timestamp(_)
+                    | Field::Date(_)
+                    | Field::Json(_)
+                    | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                        left_p,
+                        right_p,
+                        $op.to_string(),
+                    )),
+                },
                 Field::I128(left_v) => match right_p {
                     // left: I128, right: Int
                     Field::Int(right_v) => Ok(Field::Boolean($function(left_v, right_v as i128))),
+                    Field::Int8(right_v) => Ok(Field::Boolean($function(left_v, right_v as i128))),
                     // left: I128, right: I128
                     Field::I128(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
                     // left: I128, right: UInt
@@ -205,6 +274,9 @@ macro_rules! define_comparison {
                 Field::UInt(left_v) => match right_p {
                     // left: UInt, right: Int
                     Field::Int(right_v) => Ok(Field::Boolean($function(left_v as i64, right_v))),
+                    Field::Int8(right_v) => {
+                        Ok(Field::Boolean($function(left_v as i64, right_v as i64)))
+                    }
                     // left: UInt, right: I128
                     Field::I128(right_v) => Ok(Field::Boolean($function(left_v as i128, right_v))),
                     // left: UInt, right: UInt
@@ -251,6 +323,9 @@ macro_rules! define_comparison {
                 Field::U128(left_v) => match right_p {
                     // left: U128, right: Int
                     Field::Int(right_v) => {
+                        Ok(Field::Boolean($function(left_v as i128, right_v as i128)))
+                    }
+                    Field::Int8(right_v) => {
                         Ok(Field::Boolean($function(left_v as i128, right_v as i128)))
                     }
                     // left: U128, right: I128
@@ -303,10 +378,13 @@ macro_rules! define_comparison {
                     Field::Float(right_v) => Ok(Field::Boolean($function(left_v, right_v))),
                     // left: Float, right: UInt
                     Field::UInt(right_v) => Ok(Field::Boolean($function(*left_v, right_v as f64))),
+
                     // left: Float, right: U128
                     Field::U128(right_v) => Ok(Field::Boolean($function(*left_v, right_v as f64))),
                     // left: Float, right: Int
                     Field::Int(right_v) => Ok(Field::Boolean($function(*left_v, right_v as f64))),
+                    Field::Int8(right_v) => Ok(Field::Boolean($function(*left_v, right_v as f64))),
+
                     // left: Float, right: I128
                     Field::I128(right_v) => Ok(Field::Boolean($function(*left_v, right_v as f64))),
                     // left: Float, right: Decimal
@@ -356,6 +434,15 @@ macro_rules! define_comparison {
                                 format!("{}", right_v),
                                 "Decimal".to_string(),
                             ))?;
+                        Ok(Field::Boolean($function(left_v, right_v_d)))
+                    }
+                    Field::Int8(right_v) => {
+                        let right_v_d = Decimal::from_i64(right_v as i64).ok_or(
+                            PipelineError::UnableToCast(
+                                format!("{}", right_v),
+                                "Decimal".to_string(),
+                            ),
+                        )?;
                         Ok(Field::Boolean($function(left_v, right_v_d)))
                     }
                     // left: Decimal, right: I128
@@ -432,6 +519,12 @@ macro_rules! define_comparison {
                             PipelineError::UnableToCast(format!("{}", left_v), "Int".to_string())
                         })?;
                         Ok(Field::Boolean($function(left_val, right_v)))
+                    }
+                    Field::Int8(right_v) => {
+                        let left_val = i64::from_str(left_v).map_err(|_| {
+                            PipelineError::UnableToCast(format!("{}", left_v), "Int8".to_string())
+                        })?;
+                        Ok(Field::Boolean($function(left_val, right_v as i64)))
                     }
                     Field::I128(right_v) => {
                         let left_val = i128::from_str(left_v).map_err(|_| {
@@ -515,6 +608,7 @@ macro_rules! define_comparison {
                     Field::UInt(_)
                     | Field::U128(_)
                     | Field::Int(_)
+                    | Field::Int8(_)
                     | Field::I128(_)
                     | Field::Float(_)
                     | Field::Boolean(_)
@@ -545,6 +639,7 @@ macro_rules! define_comparison {
                     Field::UInt(_)
                     | Field::U128(_)
                     | Field::Int(_)
+                    | Field::Int8(_)
                     | Field::I128(_)
                     | Field::Float(_)
                     | Field::Boolean(_)
@@ -571,6 +666,7 @@ macro_rules! define_comparison {
                     Field::UInt(_)
                     | Field::U128(_)
                     | Field::Int(_)
+                    | Field::Int8(_)
                     | Field::I128(_)
                     | Field::Float(_)
                     | Field::Boolean(_)
@@ -601,6 +697,7 @@ macro_rules! define_comparison {
                     Field::UInt(_)
                     | Field::U128(_)
                     | Field::Int(_)
+                    | Field::Int8(_)
                     | Field::I128(_)
                     | Field::Float(_)
                     | Field::Boolean(_)
@@ -667,6 +764,13 @@ pub fn evaluate_lt(
                 })?;
                 Ok(Field::Boolean(!left_v & right_v_b))
             }
+
+            Field::Int8(right_v) => {
+                let right_v_b = bool::from_str(right_v.to_string().as_str()).map_err(|_| {
+                    PipelineError::UnableToCast(format!("{}", right_v), "Bool".to_string())
+                })?;
+                Ok(Field::Boolean(!left_v & right_v_b))
+            }
             // left: Bool, right: I128
             Field::I128(right_v) => {
                 let right_v_b = bool::from_str(right_v.to_string().as_str()).map_err(|_| {
@@ -699,6 +803,8 @@ pub fn evaluate_lt(
         Field::Int(left_v) => match right_p {
             // left: Int, right: Int
             Field::Int(right_v) => Ok(Field::Boolean(left_v < right_v)),
+            Field::Int8(right_v) => Ok(Field::Boolean(left_v < (right_v as i64))),
+
             // left: Int, right: I128
             Field::I128(right_v) => Ok(Field::Boolean((left_v as i128) < right_v)),
             // left: Int, right: UInt
@@ -741,13 +847,62 @@ pub fn evaluate_lt(
                 "<".to_string(),
             )),
         },
+        Field::Int8(left_v) => match right_p {
+            // left: Int, right: Int
+            Field::Int(right_v) => Ok(Field::Boolean((left_v as i64) < right_v)),
+            Field::Int8(right_v) => Ok(Field::Boolean(left_v < right_v)),
+
+            // left: Int, right: I128
+            Field::I128(right_v) => Ok(Field::Boolean((left_v as i128) < right_v)),
+            // left: Int, right: UInt
+            Field::UInt(right_v) => Ok(Field::Boolean((left_v as i64) < (right_v as i64))),
+            // left: Int, right: U128
+            Field::U128(right_v) => Ok(Field::Boolean((left_v as i64) < (right_v as i64))),
+            // left: Int, right: Float
+            Field::Float(right_v) => Ok(Field::Boolean((left_v as f64) < *right_v)),
+            // left: Int, right: Decimal
+            Field::Decimal(right_v) => {
+                let left_v_d = Decimal::from_i64(left_v as i64).ok_or(
+                    PipelineError::UnableToCast(format!("{}", left_v), "Decimal".to_string()),
+                )?;
+                Ok(Field::Boolean(left_v_d < right_v))
+            }
+            // left: Int, right: String or Text
+            Field::String(right_v) | Field::Text(right_v) => {
+                let right_v_b = i8::from_str(right_v.as_str()).map_err(|_| {
+                    PipelineError::UnableToCast(right_v.to_string(), "Int".to_string())
+                })?;
+                Ok(Field::Boolean(left_v < right_v_b))
+            }
+            // left: Int, right: Duration
+            Field::Duration(right_v) => {
+                let left_v_b =
+                    DozerDuration(Duration::from_nanos(left_v as u64), TimeUnit::Nanoseconds);
+                Ok(Field::Boolean(left_v_b < right_v))
+            }
+            // left: Int, right: Null
+            Field::Null => Ok(Field::Null),
+            Field::Boolean(_)
+            | Field::Binary(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Json(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                "<".to_string(),
+            )),
+        },
         Field::I128(left_v) => match right_p {
             // left: I128, right: Int
             Field::Int(right_v) => Ok(Field::Boolean(left_v < (right_v as i128))),
+            Field::Int8(right_v) => Ok(Field::Boolean(left_v < (right_v as i128))),
+
             // left: I128, right: I128
             Field::I128(right_v) => Ok(Field::Boolean(left_v < right_v)),
             // left: I128, right: UInt
             Field::UInt(right_v) => Ok(Field::Boolean(left_v < (right_v as i128))),
+
             // left: I128, right: U128
             Field::U128(right_v) => Ok(Field::Boolean(left_v < (right_v as i128))),
             // left: I128, right: Float
@@ -789,6 +944,8 @@ pub fn evaluate_lt(
         Field::UInt(left_v) => match right_p {
             // left: UInt, right: Int
             Field::Int(right_v) => Ok(Field::Boolean((left_v as i64) < right_v)),
+            Field::Int8(right_v) => Ok(Field::Boolean((left_v as i64) < (right_v as i64))),
+
             // left: UInt, right: I128
             Field::I128(right_v) => Ok(Field::Boolean((left_v as i128) < right_v)),
             // left: UInt, right: UInt
@@ -832,6 +989,8 @@ pub fn evaluate_lt(
         Field::U128(left_v) => match right_p {
             // left: U128, right: Int
             Field::Int(right_v) => Ok(Field::Boolean((left_v as i128) < (right_v as i128))),
+            Field::Int8(right_v) => Ok(Field::Boolean((left_v as i128) < (right_v as i128))),
+
             // left: U128, right: I128
             Field::I128(right_v) => Ok(Field::Boolean((left_v as i128) < right_v)),
             // left: U128, right: UInt
@@ -882,6 +1041,8 @@ pub fn evaluate_lt(
             Field::U128(right_v) => Ok(Field::Boolean(*left_v < (right_v as f64))),
             // left: Float, right: Int
             Field::Int(right_v) => Ok(Field::Boolean(*left_v < (right_v as f64))),
+            Field::Int8(right_v) => Ok(Field::Boolean(*left_v < (right_v as f64))),
+
             // left: Float, right: I128
             Field::I128(right_v) => Ok(Field::Boolean(*left_v < (right_v as f64))),
             // left: Float, right: Decimal
@@ -925,6 +1086,12 @@ pub fn evaluate_lt(
                 // left: Decimal, right: Int
                 Field::Int(right_v) => {
                     let right_v_d = Decimal::from_i64(right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v < right_v_d))
+                }
+                Field::Int8(right_v) => {
+                    let right_v_d = Decimal::from_i64(right_v as i64).ok_or(
                         PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
                     )?;
                     Ok(Field::Boolean(left_v < right_v_d))
@@ -996,6 +1163,12 @@ pub fn evaluate_lt(
                 })?;
                 Ok(Field::Boolean(left_val < right_v))
             }
+            Field::Int8(right_v) => {
+                let left_val = i64::from_str(left_v).map_err(|_| {
+                    PipelineError::UnableToCast(left_v.to_string(), "Int".to_string())
+                })?;
+                Ok(Field::Boolean(left_val < (right_v as i64)))
+            }
             Field::I128(right_v) => {
                 let left_val = i128::from_str(left_v).map_err(|_| {
                     PipelineError::UnableToCast(left_v.to_string(), "I128".to_string())
@@ -1062,6 +1235,7 @@ pub fn evaluate_lt(
             Field::UInt(_)
             | Field::U128(_)
             | Field::Int(_)
+            | Field::Int8(_)
             | Field::I128(_)
             | Field::Float(_)
             | Field::Boolean(_)
@@ -1088,6 +1262,7 @@ pub fn evaluate_lt(
             Field::UInt(_)
             | Field::U128(_)
             | Field::Int(_)
+            | Field::Int8(_)
             | Field::I128(_)
             | Field::Float(_)
             | Field::Boolean(_)
@@ -1114,6 +1289,7 @@ pub fn evaluate_lt(
             Field::UInt(_)
             | Field::U128(_)
             | Field::Int(_)
+            | Field::Int8(_)
             | Field::I128(_)
             | Field::Float(_)
             | Field::Boolean(_)
@@ -1140,6 +1316,7 @@ pub fn evaluate_lt(
             Field::UInt(_)
             | Field::U128(_)
             | Field::Int(_)
+            | Field::Int8(_)
             | Field::I128(_)
             | Field::Float(_)
             | Field::Boolean(_)
@@ -1201,6 +1378,12 @@ pub fn evaluate_gt(
                 })?;
                 Ok(Field::Boolean(left_v & !right_v_b))
             }
+            Field::Int8(right_v) => {
+                let right_v_b = bool::from_str(right_v.to_string().as_str()).map_err(|_| {
+                    PipelineError::UnableToCast(format!("{}", right_v), "Bool".to_string())
+                })?;
+                Ok(Field::Boolean(left_v & !right_v_b))
+            }
             // left: Bool, right: I128
             Field::I128(right_v) => {
                 let right_v_b = bool::from_str(right_v.to_string().as_str()).map_err(|_| {
@@ -1233,6 +1416,8 @@ pub fn evaluate_gt(
         Field::Int(left_v) => match right_p {
             // left: Int, right: Int
             Field::Int(right_v) => Ok(Field::Boolean(left_v > right_v)),
+            Field::Int8(right_v) => Ok(Field::Boolean(left_v > (right_v as i64))),
+
             // left: Int, right: I128
             Field::I128(right_v) => Ok(Field::Boolean((left_v as i128) > right_v)),
             // left: Int, right: UInt
@@ -1275,9 +1460,57 @@ pub fn evaluate_gt(
                 ">".to_string(),
             )),
         },
+        Field::Int8(left_v) => match right_p {
+            // left: Int, right: Int
+            Field::Int(right_v) => Ok(Field::Boolean((left_v as i64) > right_v)),
+            Field::Int8(right_v) => Ok(Field::Boolean(left_v > right_v)),
+
+            // left: Int, right: I128
+            Field::I128(right_v) => Ok(Field::Boolean((left_v as i128) > right_v)),
+            // left: Int, right: UInt
+            Field::UInt(right_v) => Ok(Field::Boolean((left_v as i64) > (right_v as i64))),
+            // left: Int, right: U128
+            Field::U128(right_v) => Ok(Field::Boolean((left_v as i64) > (right_v as i64))),
+            // left: Int, right: Float
+            Field::Float(right_v) => Ok(Field::Boolean(left_v as f64 > *right_v)),
+            // left: Int, right: Decimal
+            Field::Decimal(right_v) => {
+                let left_v_d = Decimal::from_i64(left_v as i64).ok_or(
+                    PipelineError::UnableToCast(format!("{}", left_v), "Decimal".to_string()),
+                )?;
+                Ok(Field::Boolean(left_v_d > right_v))
+            }
+            // left: Int, right: String or Text
+            Field::String(right_v) | Field::Text(right_v) => {
+                let right_v_b = i64::from_str(right_v.as_str()).map_err(|_| {
+                    PipelineError::UnableToCast(right_v.to_string(), "Int".to_string())
+                })?;
+                Ok(Field::Boolean((left_v as i64) > right_v_b))
+            }
+            // left: Int, right: Duration
+            Field::Duration(right_v) => {
+                let left_v_b =
+                    DozerDuration(Duration::from_nanos(left_v as u64), TimeUnit::Nanoseconds);
+                Ok(Field::Boolean(left_v_b > right_v))
+            }
+            // left: Int, right: Null
+            Field::Null => Ok(Field::Null),
+            Field::Boolean(_)
+            | Field::Binary(_)
+            | Field::Timestamp(_)
+            | Field::Date(_)
+            | Field::Json(_)
+            | Field::Point(_) => Err(PipelineError::InvalidTypeComparison(
+                left_p,
+                right_p,
+                ">".to_string(),
+            )),
+        },
         Field::I128(left_v) => match right_p {
             // left: I128, right: Int
             Field::Int(right_v) => Ok(Field::Boolean(left_v > (right_v as i128))),
+            Field::Int8(right_v) => Ok(Field::Boolean(left_v > (right_v as i128))),
+
             // left: I128, right: I128
             Field::I128(right_v) => Ok(Field::Boolean(left_v > right_v)),
             // left: I128, right: UInt
@@ -1323,6 +1556,8 @@ pub fn evaluate_gt(
         Field::UInt(left_v) => match right_p {
             // left: UInt, right: Int
             Field::Int(right_v) => Ok(Field::Boolean((left_v as i64) > right_v)),
+            Field::Int8(right_v) => Ok(Field::Boolean((left_v as i64) > (right_v as i64))),
+
             // left: UInt, right: I128
             Field::I128(right_v) => Ok(Field::Boolean((left_v as i128) > right_v)),
             // left: UInt, right: UInt
@@ -1366,6 +1601,8 @@ pub fn evaluate_gt(
         Field::U128(left_v) => match right_p {
             // left: U128, right: Int
             Field::Int(right_v) => Ok(Field::Boolean((left_v as i128) > (right_v as i128))),
+            Field::Int8(right_v) => Ok(Field::Boolean((left_v as i128) > (right_v as i128))),
+
             // left: U128, right: I128
             Field::I128(right_v) => Ok(Field::Boolean((left_v as i128) > right_v)),
             // left: U128, right: UInt
@@ -1416,6 +1653,7 @@ pub fn evaluate_gt(
             Field::U128(right_v) => Ok(Field::Boolean(*left_v > right_v as f64)),
             // left: Float, right: Int
             Field::Int(right_v) => Ok(Field::Boolean(*left_v > right_v as f64)),
+            Field::Int8(right_v) => Ok(Field::Boolean(*left_v > right_v as f64)),
             // left: Float, right: I128
             Field::I128(right_v) => Ok(Field::Boolean(*left_v > right_v as f64)),
             // left: Float, right: Decimal
@@ -1459,6 +1697,12 @@ pub fn evaluate_gt(
                 // left: Decimal, right: Int
                 Field::Int(right_v) => {
                     let right_v_d = Decimal::from_i64(right_v).ok_or(
+                        PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
+                    )?;
+                    Ok(Field::Boolean(left_v > right_v_d))
+                }
+                Field::Int8(right_v) => {
+                    let right_v_d = Decimal::from_i64(right_v as i64).ok_or(
                         PipelineError::UnableToCast(format!("{}", right_v), "Decimal".to_string()),
                     )?;
                     Ok(Field::Boolean(left_v > right_v_d))
@@ -1530,6 +1774,12 @@ pub fn evaluate_gt(
                 })?;
                 Ok(Field::Boolean(left_val > right_v))
             }
+            Field::Int8(right_v) => {
+                let left_val = i64::from_str(left_v).map_err(|_| {
+                    PipelineError::UnableToCast(left_v.to_string(), "Int".to_string())
+                })?;
+                Ok(Field::Boolean(left_val > (right_v as i64)))
+            }
             Field::I128(right_v) => {
                 let left_val = i128::from_str(left_v).map_err(|_| {
                     PipelineError::UnableToCast(left_v.to_string(), "I128".to_string())
@@ -1596,6 +1846,7 @@ pub fn evaluate_gt(
             Field::UInt(_)
             | Field::U128(_)
             | Field::Int(_)
+            | Field::Int8(_)
             | Field::I128(_)
             | Field::Float(_)
             | Field::Boolean(_)
@@ -1622,6 +1873,7 @@ pub fn evaluate_gt(
             Field::UInt(_)
             | Field::U128(_)
             | Field::Int(_)
+            | Field::Int8(_)
             | Field::I128(_)
             | Field::Float(_)
             | Field::Boolean(_)
@@ -1648,6 +1900,7 @@ pub fn evaluate_gt(
             Field::UInt(_)
             | Field::U128(_)
             | Field::Int(_)
+            | Field::Int8(_)
             | Field::I128(_)
             | Field::Float(_)
             | Field::Boolean(_)
@@ -1674,6 +1927,7 @@ pub fn evaluate_gt(
             Field::UInt(_)
             | Field::U128(_)
             | Field::Int(_)
+            | Field::Int8(_)
             | Field::I128(_)
             | Field::Float(_)
             | Field::Boolean(_)

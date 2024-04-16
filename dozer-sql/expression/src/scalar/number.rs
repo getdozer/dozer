@@ -16,6 +16,7 @@ pub(crate) fn evaluate_abs(
         Field::UInt(u) => Ok(Field::UInt(u)),
         Field::U128(u) => Ok(Field::U128(u)),
         Field::Int(i) => Ok(Field::Int(i.abs())),
+        Field::Int8(i) => Ok(Field::Int8(i.abs())),
         Field::I128(i) => Ok(Field::I128(i.abs())),
         Field::Float(f) => Ok(Field::Float(f.abs())),
         Field::Decimal(d) => Ok(Field::Decimal(d.abs())),
@@ -50,6 +51,7 @@ pub(crate) fn evaluate_round(
             Field::UInt(u) => places = u as i32,
             Field::U128(u) => places = u as i32,
             Field::Int(i) => places = i as i32,
+            Field::Int8(i) => places = i as i32,
             Field::I128(i) => places = i as i32,
             Field::Float(f) => places = f.round().0 as i32,
             Field::Decimal(d) => {
@@ -79,6 +81,7 @@ pub(crate) fn evaluate_round(
         Field::UInt(u) => Ok(Field::UInt(u)),
         Field::U128(u) => Ok(Field::U128(u)),
         Field::Int(i) => Ok(Field::Int(i)),
+        Field::Int8(i) => Ok(Field::Int8(i)),
         Field::I128(i) => Ok(Field::I128(i)),
         Field::Float(f) => Ok(Field::Float((f * order).round() / order)),
         Field::Decimal(d) => Ok(Field::Decimal(d.round_dp(places as u32))),

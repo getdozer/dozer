@@ -24,6 +24,7 @@ impl AvgAggregator {
         Self {
             current_state: SumState {
                 int_state: 0_i64,
+                int8_state: 0_i8,
                 i128_state: 0_i128,
                 uint_state: 0_u64,
                 u128_state: 0_u128,
@@ -101,6 +102,13 @@ fn get_average(
                 }
                 let i_sum = sum.to_int().ok_or(InvalidValue(sum.to_string())).unwrap();
                 Ok(Field::Int(i_sum.div_wrapping(*current_count as i64)))
+            }
+            FieldType::Int8 => {
+                if *current_count == 0 {
+                    return Ok(Field::Null);
+                }
+                let i_sum = sum.to_int8().ok_or(InvalidValue(sum.to_string())).unwrap();
+                Ok(Field::Int8(i_sum.div_wrapping(*current_count as i8)))
             }
             FieldType::I128 => {
                 if *current_count == 0 {

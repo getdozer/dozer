@@ -150,6 +150,7 @@ pub fn map_field_to_type(field: &FieldDefinition) -> String {
         FieldType::UInt => "UInt64",
         FieldType::U128 => "UInt128",
         FieldType::Int => "Int64",
+        FieldType::Int8 => "Int8",
         FieldType::I128 => "Int128",
         FieldType::Float => "Float64",
         FieldType::Boolean => "Boolean",

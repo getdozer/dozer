@@ -87,6 +87,17 @@ impl Aggregator for MaxAppendOnlyAggregator {
                             self.update_state(Field::Int(new_val));
                         }
                     }
+                    FieldType::Int8 => {
+                        let new_val = calculate_err_field!(val.to_int8(), MaxAppendOnly, val);
+                        let max_val = match cur_max {
+                            Field::Null => i8::MIN,
+                            _ => calculate_err_field!(cur_max.to_int8(), MaxAppendOnly, val),
+                        };
+
+                        if new_val > max_val {
+                            self.update_state(Field::Int8(new_val));
+                        }
+                    }
                     FieldType::I128 => {
                         let new_val = calculate_err_field!(val.to_i128(), MaxAppendOnly, val);
                         let max_val = match cur_max {

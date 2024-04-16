@@ -21,6 +21,7 @@ impl Display for CastOperatorType {
             FieldType::UInt => f.write_str("CAST AS UINT"),
             FieldType::U128 => f.write_str("CAST AS U128"),
             FieldType::Int => f.write_str("CAST AS INT"),
+            FieldType::Int8 => f.write_str("CAST AS INT8"),
             FieldType::I128 => f.write_str("CAST AS I128"),
             FieldType::Float => f.write_str("CAST AS FLOAT"),
             FieldType::Boolean => f.write_str("CAST AS BOOLEAN"),
@@ -79,6 +80,19 @@ impl CastOperatorType {
             FieldType::Int => (
                 vec![
                     FieldType::Int,
+                    FieldType::Int8,
+                    FieldType::String,
+                    FieldType::UInt,
+                    FieldType::I128,
+                    FieldType::U128,
+                    FieldType::Json,
+                ],
+                FieldType::Int,
+            ),
+            FieldType::Int8 => (
+                vec![
+                    FieldType::Int,
+                    FieldType::Int8,
                     FieldType::String,
                     FieldType::UInt,
                     FieldType::I128,
@@ -245,6 +259,16 @@ pub fn cast_field(input: &Field, output_type: FieldType) -> Result<Field, Error>
         FieldType::Int => {
             if let Some(value) = input.to_int() {
                 Ok(Field::Int(value))
+            } else {
+                Err(Error::InvalidCast {
+                    from: input.clone(),
+                    to: FieldType::Int,
+                })
+            }
+        }
+        FieldType::Int8 => {
+            if let Some(value) = input.to_int8() {
+                Ok(Field::Int8(value))
             } else {
                 Err(Error::InvalidCast {
                     from: input.clone(),
