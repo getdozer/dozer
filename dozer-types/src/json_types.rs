@@ -131,7 +131,7 @@ pub fn field_to_json_value(field: Field) -> JsonValue {
     }
 }
 
-fn json_value_to_serde_json(value: &JsonValue) -> Value {
+pub fn json_value_to_serde_json(value: &JsonValue) -> Value {
     // Note that while this cannot fail, the other way might, as our internal JSON
     // representation does not support `inf`, `-inf` and NaN
     ijson::from_value(value).expect("Json to Json conversion should never fail")

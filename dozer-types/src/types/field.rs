@@ -836,7 +836,7 @@ impl Display for Field {
             Field::Boolean(true) => {
                 write!(f, "TRUE")
             }
-            Field::String(s) => f.write_str(s),
+            Field::String(s) => write!(f, "{s}"),
             Field::Text(t) => write!(f, "{t}"),
             Field::Date(d) => write!(f, "{}", d.format(DATE_FORMAT)),
             Field::Timestamp(t) => write!(f, "{}", t.to_rfc3339()),

@@ -77,6 +77,10 @@ pub enum Error {
     FailedToCalculateVincentyDistance(
         #[from] dozer_types::geo::vincenty_distance::FailedToConvergeError,
     ),
+    #[error("Fail to deserialize: {0}")]
+    FailedToDeserialize(
+        #[from] dozer_types::errors::types::DeserializationError,
+    ),
 
     #[error("Invalid like escape: {0}")]
     InvalidLikeEscape(#[from] like::InvalidEscapeError),
