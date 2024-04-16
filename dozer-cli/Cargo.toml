@@ -16,10 +16,7 @@ dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
 dozer-types = { path = "../dozer-types" }
 dozer-tracing = { path = "../dozer-tracing" }
-dozer-sink-aerospike = { path = "../dozer-sink-aerospike" }
 dozer-sink-clickhouse = { path = "../dozer-sink-clickhouse" }
-dozer-sink-oracle = { path = "../dozer-sink-oracle" }
-
 actix-web = "4.4.0"
 async-trait = "0.1.74"
 uuid = { version = "1.6.1", features = ["v4", "serde"] }

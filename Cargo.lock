@@ -246,13 +246,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aerospike-client-sys"
-version = "0.1.0"
-dependencies = [
- "bindgen",
-]
-
-[[package]]
 name = "aes"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -976,15 +969,12 @@ dependencies = [
  "itertools 0.12.1",
  "lazy_static",
  "lazycell",
- "log",
- "prettyplease",
  "proc-macro2",
  "quote",
  "regex",
  "rustc-hash",
  "shlex",
  "syn 2.0.53",
- "which 4.4.2",
 ]
 
 [[package]]
@@ -2789,9 +2779,7 @@ dependencies = [
  "clap",
  "dozer-core",
  "dozer-ingestion",
- "dozer-sink-aerospike",
  "dozer-sink-clickhouse",
- "dozer-sink-oracle",
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",
@@ -2872,7 +2860,6 @@ dependencies = [
  "bytes",
  "chrono",
  "criterion",
- "dozer-ingestion-aerospike",
  "dozer-ingestion-connector",
  "dozer-ingestion-deltalake",
  "dozer-ingestion-ethereum",
@@ -2882,7 +2869,6 @@ dependencies = [
  "dozer-ingestion-mongodb",
  "dozer-ingestion-mysql",
  "dozer-ingestion-object-store",
- "dozer-ingestion-oracle",
  "dozer-ingestion-postgres",
  "dozer-ingestion-snowflake",
  "dozer-ingestion-webhook",
@@ -2898,16 +2884,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "url",
-]
-
-[[package]]
-name = "dozer-ingestion-aerospike"
-version = "0.4.0"
-dependencies = [
- "actix-web",
- "base64 0.21.7",
- "dozer-ingestion-connector",
- "dozer-sink-aerospike",
 ]
 
 [[package]]
@@ -3002,16 +2978,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dozer-ingestion-oracle"
-version = "0.1.0"
-dependencies = [
- "dozer-ingestion-connector",
- "env_logger 0.11.2",
- "oracle",
- "regex",
-]
-
-[[package]]
 name = "dozer-ingestion-postgres"
 version = "0.4.0"
 dependencies = [
@@ -3054,17 +3020,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dozer-sink-aerospike"
-version = "0.1.0"
-dependencies = [
- "aerospike-client-sys",
- "dozer-core",
- "dozer-types",
- "itertools 0.12.1",
- "smallvec",
-]
-
-[[package]]
 name = "dozer-sink-clickhouse"
 version = "0.1.0"
 dependencies = [
@@ -3074,15 +3029,6 @@ dependencies = [
  "dozer-types",
  "either",
  "serde",
-]
-
-[[package]]
-name = "dozer-sink-oracle"
-version = "0.1.0"
-dependencies = [
- "dozer-core",
- "dozer-types",
- "oracle",
 ]
 
 [[package]]
@@ -5946,31 +5892,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
-]
-
-[[package]]
-name = "oracle"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfe80334af1fbaea016fbef0af77f5fa32452362e29a039389b8c93737585003"
-dependencies = [
- "cc",
- "chrono",
- "lazy_static",
- "oracle_procmacro",
- "paste",
-]
-
-[[package]]
-name = "oracle_procmacro"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad247f3421d57de56a0d0408d3249d4b1048a522be2013656d92f022c3d8af27"
-dependencies = [
- "darling 0.13.4",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]

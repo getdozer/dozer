@@ -24,9 +24,7 @@ use std::hash::Hash;
 use tokio::runtime::Runtime;
 
 use crate::pipeline::dummy_sink::DummySinkFactory;
-use dozer_sink_aerospike::AerospikeSinkFactory;
 use dozer_sink_clickhouse::ClickhouseSinkFactory;
-use dozer_sink_oracle::OracleSinkFactory;
 
 use super::source_builder::SourceBuilder;
 use crate::errors::OrchestrationError;
@@ -246,35 +244,7 @@ impl<'a> PipelineBuilder<'a> {
                     id,
                     vec![(get_table_info(&config.table_name)?, DEFAULT_PORT_HANDLE)],
                 ),
-                SinkConfig::Aerospike(config) => {
-                    let connection = self
-                        .connections
-                        .iter()
-                        .find_map(|conn| match conn {
-                            Connection {
-                                config: ConnectionConfig::Aerospike(conn_config),
-                                name,
-                            } if name == &config.connection => Some(conn_config),
-                            _ => None,
-                        })
-                        .ok_or_else(|| {
-                            OrchestrationError::ConnectionNotFound(config.connection.clone())
-                        })?;
-                    let sink_factory = Box::new(AerospikeSinkFactory::new(
-                        connection.clone(),
-                        config.clone(),
-                    ));
-                    let table_infos = config
-                        .tables
-                        .iter()
-                        .enumerate()
-                        .map(|(port, table)| {
-                            let table_info = get_table_info(&table.source_table_name)?;
-                            Ok((table_info, port as PortHandle))
-                        })
-                        .collect::<Result<Vec<_>, OrchestrationError>>()?;
-                    add_sink_to_pipeline(&mut pipeline, sink_factory, id, table_infos);
-                }
+
                 SinkConfig::Clickhouse(config) => {
                     let sink =
                         Box::new(ClickhouseSinkFactory::new(config.clone(), runtime.clone()));
@@ -286,28 +256,8 @@ impl<'a> PipelineBuilder<'a> {
                         vec![(table_info, DEFAULT_PORT_HANDLE)],
                     );
                 }
-                SinkConfig::Oracle(config) => {
-                    let connection = self
-                        .connections
-                        .iter()
-                        .find_map(|conn| match conn {
-                            Connection {
-                                config: ConnectionConfig::Oracle(conn_config),
-                                name,
-                            } if name == &config.connection => Some(conn_config),
-                            _ => None,
-                        })
-                        .ok_or_else(|| {
-                            OrchestrationError::ConnectionNotFound(config.connection.clone())
-                        })?;
-                    let sink = Box::new(OracleSinkFactory::new(connection.clone(), config.clone()));
-                    let table_info = get_table_info(&config.table_name)?;
-                    add_sink_to_pipeline(
-                        &mut pipeline,
-                        sink,
-                        id,
-                        vec![(table_info, DEFAULT_PORT_HANDLE)],
-                    );
+                x => {
+                    return Err(OrchestrationError::UnsupportedFeature(x.name()));
                 }
             }
         }

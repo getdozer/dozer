@@ -33,6 +33,9 @@ pub enum ConnectorError {
     #[error("javascript feature is not enabled")]
     JavascrtiptFeatureNotEnabled,
 
+    #[error("{0}: This feature is only avaialble in enteprise. Please contact us.")]
+    FeatureNotEnabled(String),
+
     #[error("{0} is not supported as a source connector")]
     Unsupported(String),
 }
