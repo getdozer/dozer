@@ -1,3 +1,0 @@
-[submodule "dozer-sink-aerospike/aerospike-client-sys/aerospike-client-c"]
-	path = dozer-sink-aerospike/aerospike-client-sys/aerospike-client-c
-	url = https://github.com/aerospike/aerospike-client-c
