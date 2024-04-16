@@ -1,7 +1,0 @@
-# Note that any updates to this files will not be applied in CI
-# until this file is merged into main. This is due to oddities of the labeller Github Action.
-'doc-update-needed':
-  - dozer-types/src/models/*
-  - dozer-cli/src/cli/types.rs
-  - dozer-types/protos/*
-  - dozer-api/src/generator/protoc/generator/template/proto.tmpl
