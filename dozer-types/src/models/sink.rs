@@ -1,9 +1,9 @@
-use std::num::NonZeroUsize;
-
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use std::{num::NonZeroUsize, path::Display};
 
 use super::equal_default;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Default, Eq, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
@@ -109,6 +109,17 @@ pub enum SinkConfig {
     Aerospike(AerospikeSinkConfig),
     Clickhouse(ClickhouseSinkConfig),
     Oracle(OracleSinkConfig),
+}
+impl SinkConfig {
+    pub fn name(&self) -> String {
+        let name = match self {
+            SinkConfig::Dummy(_) => "dummy",
+            SinkConfig::Aerospike(_) => "aerospike",
+            SinkConfig::Clickhouse(_) => "clickhouse",
+            SinkConfig::Oracle(_) => "oracle",
+        };
+        return name.to_string();
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq)]

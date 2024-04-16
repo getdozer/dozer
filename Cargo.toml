@@ -8,9 +8,7 @@ members = [
   "dozer-tracing",
   "dozer-tests",
   "dozer-utils",
-  "dozer-sink-aerospike",
   "dozer-sink-clickhouse",
-  "dozer-sink-oracle",
 ]
 resolver = "2"
 

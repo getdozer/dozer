@@ -1,6 +1,3 @@
-use std::sync::Arc;
-
-use dozer_ingestion_aerospike::connector::AerospikeConnector;
 #[cfg(feature = "ethereum")]
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::EthProviderConfig;
 use dozer_ingestion_connector::dozer_types::{
@@ -10,7 +7,6 @@ use dozer_ingestion_connector::dozer_types::{
         connection::{Connection, ConnectionConfig},
         ingestion_types::default_grpc_adapter,
     },
-    node::NodeHandle,
     prettytable::Table,
 };
 #[cfg(feature = "datafusion")]
@@ -27,7 +23,6 @@ use dozer_ingestion_mongodb::MongodbConnector;
 use dozer_ingestion_mysql::connector::{mysql_connection_opts_from_url, MySQLConnector};
 #[cfg(feature = "datafusion")]
 use dozer_ingestion_object_store::connector::ObjectStoreConnector;
-use dozer_ingestion_oracle::OracleConnector;
 use dozer_ingestion_postgres::{
     connection::helper::map_connection_config,
     connector::{PostgresConfig, PostgresConnector},
@@ -36,6 +31,7 @@ use dozer_ingestion_postgres::{
 use dozer_ingestion_snowflake::connector::SnowflakeConnector;
 use dozer_ingestion_webhook::connector::WebhookConnector;
 use errors::ConnectorError;
+use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 pub mod errors;
@@ -157,15 +153,10 @@ pub fn get_connector(
             runtime,
             javascript_config,
         ))),
-        ConnectionConfig::Aerospike(config) => Ok(Box::new(AerospikeConnector::new(
-            config,
-            NodeHandle::new(None, connection.name),
-            event_hub.receiver,
-        ))),
-        ConnectionConfig::Oracle(oracle_config) => Ok(Box::new(OracleConnector::new(
-            connection.name,
-            oracle_config,
-        ))),
+        ConnectionConfig::Aerospike(_) => {
+            Err(ConnectorError::FeatureNotEnabled("Aerospike".to_string()))
+        }
+        ConnectionConfig::Oracle(_) => Err(ConnectorError::FeatureNotEnabled("Oracle".to_string())),
     }
 }
 

@@ -88,6 +88,8 @@ pub enum OrchestrationError {
     LockedNoLockFile,
     #[error("Command was aborted")]
     Aborted,
+    #[error("This feature is only supported in enterprise: {0}")]
+    UnsupportedFeature(String),
 }
 
 #[derive(Error, Debug)]
