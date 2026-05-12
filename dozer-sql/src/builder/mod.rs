@@ -1,12 +1,16 @@
 use crate::aggregation::factory::AggregationProcessorFactory;
 use crate::builder::PipelineError::InvalidQuery;
 use crate::errors::PipelineError;
+use crate::product::join::factory::{JoinProcessorFactory, LEFT_JOIN_PORT, RIGHT_JOIN_PORT};
 use crate::selection::factory::SelectionProcessorFactory;
 use dozer_core::app::AppPipeline;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql_expression::builder::{ExpressionBuilder, NameOrAlias};
-use dozer_sql_expression::sqlparser::ast::{SetOperator, SetQuantifier, TableFactor};
+use dozer_sql_expression::sqlparser::ast::{
+    BinaryOperator, Expr, Ident, JoinConstraint, JoinOperator, SelectItem, SetOperator,
+    SetQuantifier, TableFactor, TableWithJoins,
+};
 use dozer_types::models::udf_config::UdfConfig;
 
 use dozer_sql_expression::sqlparser::{
@@ -249,6 +253,7 @@ fn select_to_pipeline(
         ));
     };
 
+    let outer_name_or_alias = outer_name_or_alias(&from);
     let connection_info = from::insert_from_to_pipeline(from, pipeline, pipeline_idx, query_ctx)?;
 
     let input_nodes = connection_info.input_nodes;
@@ -294,28 +299,118 @@ fn select_to_pipeline(
 
     // Where clause
     if let Some(selection) = select.selection {
-        let selection = SelectionProcessorFactory::new(
-            gen_selection_name.clone(),
-            selection,
-            query_ctx.udfs.clone(),
-            query_ctx.runtime.clone(),
-        );
+        if let Expr::InSubquery {
+            expr,
+            subquery,
+            negated,
+        } = selection
+        {
+            if negated {
+                return Err(PipelineError::UnsupportedSqlError(
+                    UnsupportedSqlError::GenericError(
+                        "NOT IN subquery is not supported yet".to_string(),
+                    ),
+                ));
+            }
 
-        pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
+            let subquery_name = format!("subquery--{}", query_ctx.get_next_processor_id());
+            let join_key = subquery_join_key(&subquery_name, &subquery)?;
+            query_to_pipeline(
+                TableInfo {
+                    name: NameOrAlias(subquery_name.clone(), None),
+                    override_name: None,
+                },
+                *subquery,
+                pipeline,
+                query_ctx,
+                pipeline_idx,
+                false,
+            )?;
 
-        pipeline.connect_nodes(
-            gen_product_name,
-            product_output_port,
-            gen_selection_name.clone(),
-            DEFAULT_PORT_HANDLE,
-        );
+            let Some(subquery_output) = query_ctx
+                .pipeline_map
+                .get(&(pipeline_idx, subquery_name.clone()))
+                .cloned()
+            else {
+                return Err(PipelineError::InvalidQuery(format!(
+                    "Subquery pipeline {subquery_name:?} was not registered"
+                )));
+            };
 
-        pipeline.connect_nodes(
-            gen_selection_name,
-            DEFAULT_PORT_HANDLE,
-            gen_agg_name.clone(),
-            DEFAULT_PORT_HANDLE,
-        );
+            let join_processor_name = format!("join--{}", query_ctx.get_next_processor_id());
+            if !query_ctx
+                .processors_list
+                .insert(join_processor_name.clone())
+            {
+                return Err(PipelineError::ProcessorAlreadyExists(join_processor_name));
+            }
+
+            let join_condition = Expr::BinaryOp {
+                left: Box::new(qualify_in_subquery_left_expr(
+                    *expr,
+                    outer_name_or_alias.as_ref(),
+                )),
+                op: BinaryOperator::Eq,
+                right: Box::new(join_key),
+            };
+            let join_processor_factory = JoinProcessorFactory::new(
+                join_processor_name.clone(),
+                outer_name_or_alias,
+                Some(NameOrAlias(subquery_name, None)),
+                JoinOperator::Inner(JoinConstraint::On(join_condition)),
+                pipeline
+                    .flags()
+                    .enable_probabilistic_optimizations
+                    .in_joins
+                    .unwrap_or(false),
+            );
+
+            pipeline.add_processor(
+                Box::new(join_processor_factory),
+                join_processor_name.clone(),
+            );
+            pipeline.connect_nodes(
+                gen_product_name,
+                product_output_port,
+                join_processor_name.clone(),
+                LEFT_JOIN_PORT,
+            );
+            pipeline.connect_nodes(
+                subquery_output.node,
+                subquery_output.port,
+                join_processor_name.clone(),
+                RIGHT_JOIN_PORT,
+            );
+            pipeline.connect_nodes(
+                join_processor_name,
+                DEFAULT_PORT_HANDLE,
+                gen_agg_name.clone(),
+                DEFAULT_PORT_HANDLE,
+            );
+        } else {
+            let selection = SelectionProcessorFactory::new(
+                gen_selection_name.clone(),
+                selection,
+                query_ctx.udfs.clone(),
+                query_ctx.runtime.clone(),
+            );
+
+            pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
+
+            pipeline.connect_nodes(
+                gen_product_name,
+                product_output_port,
+                gen_selection_name.clone(),
+                DEFAULT_PORT_HANDLE,
+            );
+
+            pipeline.connect_nodes(
+                gen_selection_name,
+                DEFAULT_PORT_HANDLE,
+                gen_agg_name.clone(),
+                DEFAULT_PORT_HANDLE,
+            );
+        }
     } else {
         pipeline.connect_nodes(
             gen_product_name,
@@ -358,6 +453,72 @@ fn select_to_pipeline(
     }
 
     Ok(gen_agg_name)
+}
+
+fn outer_name_or_alias(from: &TableWithJoins) -> Option<NameOrAlias> {
+    common::get_name_or_alias(&from.relation).ok()
+}
+
+fn qualify_in_subquery_left_expr(expr: Expr, outer_name_or_alias: Option<&NameOrAlias>) -> Expr {
+    let Some(outer_name_or_alias) = outer_name_or_alias else {
+        return expr;
+    };
+
+    match expr {
+        Expr::Identifier(ident) => Expr::CompoundIdentifier(vec![
+            Ident::new(
+                outer_name_or_alias
+                    .1
+                    .as_ref()
+                    .unwrap_or(&outer_name_or_alias.0),
+            ),
+            ident,
+        ]),
+        _ => expr,
+    }
+}
+
+fn subquery_join_key(subquery_name: &str, subquery: &Query) -> Result<Expr, PipelineError> {
+    let select = match subquery.body.as_ref() {
+        SetExpr::Select(select) => select,
+        _ => {
+            return Err(PipelineError::UnsupportedSqlError(
+                UnsupportedSqlError::GenericError(
+                    "IN subquery must be a simple SELECT query".to_string(),
+                ),
+            ))
+        }
+    };
+
+    if select.projection.len() != 1 {
+        return Err(PipelineError::UnsupportedSqlError(
+            UnsupportedSqlError::GenericError(
+                "IN subquery must project exactly one column".to_string(),
+            ),
+        ));
+    }
+
+    let field = match &select.projection[0] {
+        SelectItem::UnnamedExpr(Expr::Identifier(ident)) => ident.clone(),
+        SelectItem::UnnamedExpr(Expr::CompoundIdentifier(ident)) => {
+            ident.last().cloned().ok_or_else(|| {
+                PipelineError::InvalidQuery("IN subquery projection is empty".to_string())
+            })?
+        }
+        SelectItem::ExprWithAlias { alias, .. } => alias.clone(),
+        projection => {
+            return Err(PipelineError::UnsupportedSqlError(
+                UnsupportedSqlError::GenericError(format!(
+                    "Unsupported IN subquery projection: {projection}"
+                )),
+            ))
+        }
+    };
+
+    Ok(Expr::CompoundIdentifier(vec![
+        Ident::new(subquery_name),
+        field,
+    ]))
 }
 
 #[allow(clippy::too_many_arguments)]

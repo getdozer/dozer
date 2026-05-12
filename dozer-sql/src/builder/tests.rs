@@ -209,3 +209,57 @@ from tbl;"#;
     //check if the result is ok
     assert!(result.is_ok());
 }
+
+#[test]
+fn test_in_subquery_is_lowered_into_pipeline_inputs() {
+    let sql = r#"
+        SELECT orders.id
+        INTO matching_orders
+        FROM orders
+        WHERE orders.customer_id IN (
+            SELECT allowed_customers.customer_id
+            FROM allowed_customers
+        )
+    "#;
+
+    let runtime = create_test_runtime();
+    let context = statement_to_pipeline(
+        sql,
+        &mut AppPipeline::new_with_default_flags(),
+        None,
+        vec![],
+        runtime,
+    )
+    .unwrap();
+
+    let mut used_sources = context.used_sources;
+    used_sources.sort();
+    used_sources.dedup();
+
+    assert_eq!(used_sources, vec!["allowed_customers", "orders"]);
+    assert!(context.output_tables_map.contains_key("matching_orders"));
+}
+
+#[test]
+fn test_in_subquery_rejects_multi_column_projection() {
+    let sql = r#"
+        SELECT orders.id
+        INTO matching_orders
+        FROM orders
+        WHERE orders.customer_id IN (
+            SELECT allowed_customers.customer_id, allowed_customers.region
+            FROM allowed_customers
+        )
+    "#;
+
+    let runtime = create_test_runtime();
+    let result = statement_to_pipeline(
+        sql,
+        &mut AppPipeline::new_with_default_flags(),
+        None,
+        vec![],
+        runtime,
+    );
+
+    assert!(matches!(result, Err(PipelineError::UnsupportedSqlError(_))));
+}
