@@ -4,6 +4,8 @@ use crate::aggregate::AggregateFunctionType;
 use crate::conditional::ConditionalExpressionType;
 use crate::datetime::DateTimeFunctionType;
 use crate::error::Error;
+#[cfg(feature = "wasm")]
+use dozer_types::models::udf_config::WasmConfig;
 use dozer_types::models::udf_config::{UdfConfig, UdfType};
 use dozer_types::types::FieldType;
 use dozer_types::{
@@ -573,6 +575,25 @@ impl ExpressionBuilder {
                         Err(Error::JavaScriptNotEnabled)
                     }
                 }
+                UdfType::Wasm(config) => {
+                    #[cfg(feature = "wasm")]
+                    {
+                        self.parse_wasm_udf(
+                            function_name.clone(),
+                            config,
+                            sql_function,
+                            schema,
+                            udfs,
+                        )
+                        .await
+                    }
+
+                    #[cfg(not(feature = "wasm"))]
+                    {
+                        let _ = config;
+                        Err(Error::WasmNotEnabled)
+                    }
+                }
             };
         }
 
@@ -993,6 +1014,34 @@ impl ExpressionBuilder {
         )
         .await?;
         Ok(Expression::JavaScriptUdf(udf))
+    }
+
+    #[cfg(feature = "wasm")]
+    async fn parse_wasm_udf(
+        &mut self,
+        name: String,
+        config: &WasmConfig,
+        function: &Function,
+        schema: &Schema,
+        udfs: &[UdfConfig],
+    ) -> Result<Expression, Error> {
+        let mut args = vec![];
+        for argument in &function.args {
+            args.push(
+                self.parse_sql_function_arg(false, argument, schema, udfs)
+                    .await?,
+            );
+        }
+
+        let (session, return_type) =
+            crate::wasm::prepare_wasm_session(&config.path, &name, &args, schema)?;
+
+        Ok(Expression::WasmUDF {
+            name,
+            args,
+            return_type,
+            session,
+        })
     }
 
     async fn parse_sql_in_list_operator(

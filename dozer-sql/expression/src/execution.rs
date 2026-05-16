@@ -103,6 +103,13 @@ pub enum Expression {
         session: crate::onnx::DozerSession,
         args: Vec<Expression>,
     },
+    #[cfg(feature = "wasm")]
+    WasmUDF {
+        name: String,
+        args: Vec<Expression>,
+        return_type: FieldType,
+        session: crate::wasm::WasmSession,
+    },
     #[cfg(feature = "javascript")]
     JavaScriptUdf(crate::javascript::Udf),
 }
@@ -171,6 +178,18 @@ impl Expression {
             }
             #[cfg(feature = "onnx")]
             Expression::OnnxUDF { name, args, .. } => {
+                name.to_string()
+                    + "("
+                    + args
+                        .iter()
+                        .map(|expr| expr.to_string(schema))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str()
+                    + ")"
+            }
+            #[cfg(feature = "wasm")]
+            Expression::WasmUDF { name, args, .. } => {
                 name.to_string()
                     + "("
                     + args
@@ -346,6 +365,10 @@ impl Expression {
                 use std::borrow::Borrow;
                 crate::onnx::udf::evaluate_onnx_udf(schema, session.0.borrow(), args, record)
             }
+            #[cfg(feature = "wasm")]
+            Expression::WasmUDF { args, session, .. } => {
+                crate::wasm::evaluate_wasm_udf(schema, args, record, session)
+            }
 
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
             Expression::AggregateFunction { fun, args: _ } => {
@@ -481,6 +504,13 @@ impl Expression {
             #[cfg(feature = "onnx")]
             Expression::OnnxUDF { .. } => Ok(ExpressionType::new(
                 FieldType::Float,
+                false,
+                SourceDefinition::Dynamic,
+                false,
+            )),
+            #[cfg(feature = "wasm")]
+            Expression::WasmUDF { return_type, .. } => Ok(ExpressionType::new(
+                *return_type,
                 false,
                 SourceDefinition::Dynamic,
                 false,
