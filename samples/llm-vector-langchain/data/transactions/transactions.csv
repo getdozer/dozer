@@ -1,0 +1,13 @@
+transaction_id,customer_id,merchant_category,amount_usd,txn_date
+txn_001,cust_001,travel,820.50,2026-01-12
+txn_002,cust_001,dining,188.10,2026-01-15
+txn_003,cust_001,travel,1320.00,2026-02-03
+txn_004,cust_002,groceries,122.23,2026-01-17
+txn_005,cust_002,streaming,18.99,2026-01-19
+txn_006,cust_002,groceries,98.11,2026-02-02
+txn_007,cust_003,groceries,240.42,2026-01-07
+txn_008,cust_003,utilities,210.00,2026-01-10
+txn_009,cust_003,education,510.00,2026-02-05
+txn_010,cust_004,dining,305.45,2026-01-21
+txn_011,cust_004,travel,940.00,2026-02-08
+txn_012,cust_004,subscriptions,64.99,2026-02-11

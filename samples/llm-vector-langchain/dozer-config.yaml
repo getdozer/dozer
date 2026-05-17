@@ -1,0 +1,77 @@
+app_name: llm-vector-langchain-sample
+version: 1
+
+api:
+  rest:
+    port: 8080
+    url: "[::0]"
+    cors: true
+  grpc:
+    port: 50051
+    url: "[::0]"
+    cors: true
+    web: true
+  auth: false
+  internal:
+    port: 50052
+    host: "[::1]"
+
+connections:
+  - db_type: ObjectStore
+    name: local_customer_data
+    authentication: !LocalStorage
+      details:
+        path: ./data
+      tables:
+        - !Table
+          name: customer_profiles
+          config: !CSV
+            path: customer_profiles
+            extension: .csv
+        - !Table
+          name: transactions
+          config: !CSV
+            path: transactions
+            extension: .csv
+        - !Table
+          name: credit_card_products
+          config: !CSV
+            path: credit_card_products
+            extension: .csv
+
+sources:
+  - name: customer_profiles
+    table_name: customer_profiles
+    connection: local_customer_data
+    columns:
+      - customer_id
+  - name: transactions
+    table_name: transactions
+    connection: local_customer_data
+    columns:
+      - transaction_id
+  - name: credit_card_products
+    table_name: credit_card_products
+    connection: local_customer_data
+    columns:
+      - product_id
+
+endpoints:
+  - name: customer_profiles
+    path: /customer_profiles
+    sql: SELECT customer_id, age, income_band, segment, goals, risk_tolerance FROM customer_profiles;
+    index:
+      primary_key:
+        - customer_id
+  - name: transactions
+    path: /transactions
+    sql: SELECT transaction_id, customer_id, merchant_category, amount_usd, txn_date FROM transactions;
+    index:
+      primary_key:
+        - transaction_id
+  - name: credit_card_products
+    path: /credit_card_products
+    sql: SELECT product_id, name, annual_fee_usd, rewards_focus, intro_offer, eligibility, caveat FROM credit_card_products;
+    index:
+      primary_key:
+        - product_id
