@@ -280,3 +280,24 @@ fn test_pipeline_builder() {
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);
 }
+
+#[test]
+fn test_in_list_where_clause() {
+    let sql = r#"
+        SELECT country
+        INTO filtered_users
+        FROM users
+        WHERE country IN ('Italy', 'France')
+    "#;
+
+    let runtime = create_test_runtime();
+    let result = statement_to_pipeline(
+        sql,
+        &mut AppPipeline::new_with_default_flags(),
+        None,
+        vec![],
+        runtime,
+    );
+
+    assert!(result.is_ok());
+}

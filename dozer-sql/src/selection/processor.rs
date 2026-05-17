@@ -104,3 +104,159 @@ impl Processor for SelectionProcessor {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::SelectionProcessor;
+    use crate::tests::utils::{create_test_runtime, get_select};
+    use dozer_core::channels::ProcessorChannelForwarder;
+    use dozer_core::node::Processor;
+    use dozer_core::DEFAULT_PORT_HANDLE;
+    use dozer_sql_expression::builder::ExpressionBuilder;
+    use dozer_types::types::{
+        Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+        TableOperation,
+    };
+
+    #[derive(Default)]
+    struct TestForwarder {
+        operations: Vec<TableOperation>,
+    }
+
+    impl ProcessorChannelForwarder for TestForwarder {
+        fn send(&mut self, op: TableOperation) {
+            self.operations.push(op);
+        }
+    }
+
+    fn build_schema() -> Schema {
+        Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("country"),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone()
+    }
+
+    fn build_processor(sql: &str) -> SelectionProcessor {
+        let schema = build_schema();
+        let select = get_select(sql).expect("valid SQL");
+        let selection = select.selection.expect("WHERE clause is required");
+        let runtime = create_test_runtime();
+        let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime.clone());
+        let expression = runtime
+            .block_on(builder.build(false, &selection, &schema, &[]))
+            .expect("selection expression should build");
+
+        SelectionProcessor::new(schema, expression).expect("selection processor")
+    }
+
+    fn record(country: &str) -> Record {
+        Record::new(vec![Field::String(country.to_string())])
+    }
+
+    #[test]
+    fn in_list_filters_records_and_updates() {
+        let mut processor =
+            build_processor("SELECT * FROM users WHERE country IN ('Italy', 'France')");
+        let mut fw = TestForwarder::default();
+
+        processor
+            .process(
+                TableOperation::without_id(
+                    Operation::Insert {
+                        new: record("Italy"),
+                    },
+                    DEFAULT_PORT_HANDLE,
+                ),
+                &mut fw,
+            )
+            .unwrap();
+
+        processor
+            .process(
+                TableOperation::without_id(
+                    Operation::Insert {
+                        new: record("Germany"),
+                    },
+                    DEFAULT_PORT_HANDLE,
+                ),
+                &mut fw,
+            )
+            .unwrap();
+
+        processor
+            .process(
+                TableOperation::without_id(
+                    Operation::Update {
+                        old: record("Spain"),
+                        new: record("France"),
+                    },
+                    DEFAULT_PORT_HANDLE,
+                ),
+                &mut fw,
+            )
+            .unwrap();
+
+        processor
+            .process(
+                TableOperation::without_id(
+                    Operation::Update {
+                        old: record("Italy"),
+                        new: record("Germany"),
+                    },
+                    DEFAULT_PORT_HANDLE,
+                ),
+                &mut fw,
+            )
+            .unwrap();
+
+        assert_eq!(fw.operations.len(), 3);
+        assert!(matches!(fw.operations[0].op, Operation::Insert { .. }));
+        assert!(matches!(fw.operations[1].op, Operation::Insert { .. }));
+        assert!(matches!(fw.operations[2].op, Operation::Delete { .. }));
+        assert!(fw
+            .operations
+            .iter()
+            .all(|op| op.port == DEFAULT_PORT_HANDLE));
+    }
+
+    #[test]
+    fn not_in_list_negates_the_predicate() {
+        let mut processor =
+            build_processor("SELECT * FROM users WHERE country NOT IN ('Italy', 'France')");
+        let mut fw = TestForwarder::default();
+
+        processor
+            .process(
+                TableOperation::without_id(
+                    Operation::Insert {
+                        new: record("Italy"),
+                    },
+                    DEFAULT_PORT_HANDLE,
+                ),
+                &mut fw,
+            )
+            .unwrap();
+
+        processor
+            .process(
+                TableOperation::without_id(
+                    Operation::Insert {
+                        new: record("Germany"),
+                    },
+                    DEFAULT_PORT_HANDLE,
+                ),
+                &mut fw,
+            )
+            .unwrap();
+
+        assert_eq!(fw.operations.len(), 1);
+        assert!(matches!(fw.operations[0].op, Operation::Insert { .. }));
+    }
+}

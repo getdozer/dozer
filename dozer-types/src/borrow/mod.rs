@@ -39,7 +39,10 @@ impl Borrow for String {
 }
 
 impl<T: Clone> Borrow for Vec<T> {
-    type Borrowed<'a> = &'a [T] where T: 'a;
+    type Borrowed<'a>
+        = &'a [T]
+    where
+        T: 'a;
 
     fn borrow(&self) -> Self::Borrowed<'_> {
         self
@@ -99,7 +102,10 @@ impl<'cow, B: Borrow + 'cow> Borrow for Cow<'cow, B>
 where
     for<'a> B::Borrowed<'a>: Copy,
 {
-    type Borrowed<'a> = B::Borrowed<'a> where Self: 'a;
+    type Borrowed<'a>
+        = B::Borrowed<'a>
+    where
+        Self: 'a;
 
     fn borrow(&self) -> B::Borrowed<'_> {
         match self {
