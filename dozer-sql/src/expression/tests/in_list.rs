@@ -84,3 +84,21 @@ fn test_not_in_list() {
     );
     assert_eq!(f, Field::Boolean(false));
 }
+
+#[test]
+fn test_in_list_with_nulls() {
+    let f = run_fct("SELECT 42 IN (NULL)", Schema::default(), vec![]);
+    assert_eq!(f, Field::Null);
+
+    let f = run_fct("SELECT 42 IN (1, NULL)", Schema::default(), vec![]);
+    assert_eq!(f, Field::Null);
+
+    let f = run_fct("SELECT 42 IN (1, NULL, 42)", Schema::default(), vec![]);
+    assert_eq!(f, Field::Boolean(true));
+
+    let f = run_fct("SELECT 42 NOT IN (1, NULL)", Schema::default(), vec![]);
+    assert_eq!(f, Field::Null);
+
+    let f = run_fct("SELECT NULL IN (1, 2, 3)", Schema::default(), vec![]);
+    assert_eq!(f, Field::Null);
+}
