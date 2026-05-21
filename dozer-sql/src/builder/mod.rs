@@ -6,7 +6,10 @@ use dozer_core::app::AppPipeline;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql_expression::builder::{ExpressionBuilder, NameOrAlias};
-use dozer_sql_expression::sqlparser::ast::{SetOperator, SetQuantifier, TableFactor};
+use dozer_sql_expression::sqlparser::ast::{
+    BinaryOperator, Expr as SqlExpr, Ident, Join, JoinConstraint, JoinOperator, SelectItem,
+    SetOperator, SetQuantifier, TableAlias, TableFactor, TableWithJoins,
+};
 use dozer_types::models::udf_config::UdfConfig;
 
 use dozer_sql_expression::sqlparser::{
@@ -21,7 +24,9 @@ use tokio::runtime::Runtime;
 
 use super::errors::UnsupportedSqlError;
 
-use super::product::set::set_factory::SetProcessorFactory;
+use super::product::set::set_factory::{DedupProcessorFactory, SetProcessorFactory};
+
+const IN_SUBQUERY_ALIAS_PREFIX: &str = "__dozer_in_subquery_";
 
 #[derive(Debug, Clone)]
 pub struct OutputNodeInfo {
@@ -236,18 +241,22 @@ fn query_to_pipeline(
 
 fn select_to_pipeline(
     table_info: TableInfo,
-    select: Select,
+    mut select: Select,
     pipeline: &mut AppPipeline,
     query_ctx: &mut QueryContext,
     pipeline_idx: usize,
     is_top_select: bool,
 ) -> Result<String, PipelineError> {
     // FROM clause
-    let Some(from) = select.from.into_iter().next() else {
+    let Some(mut from) = select.from.into_iter().next() else {
         return Err(PipelineError::UnsupportedSqlError(
             UnsupportedSqlError::FromCommaSyntax,
         ));
     };
+
+    if let Some(selection) = select.selection.take() {
+        select.selection = rewrite_in_subquery_selection_as_join(selection, &mut from, query_ctx)?;
+    }
 
     let connection_info = from::insert_from_to_pipeline(from, pipeline, pipeline_idx, query_ctx)?;
 
@@ -358,6 +367,123 @@ fn select_to_pipeline(
     }
 
     Ok(gen_agg_name)
+}
+
+fn rewrite_in_subquery_selection_as_join(
+    selection: SqlExpr,
+    from: &mut TableWithJoins,
+    query_ctx: &mut QueryContext,
+) -> Result<Option<SqlExpr>, PipelineError> {
+    match selection {
+        SqlExpr::BinaryOp {
+            left,
+            op: BinaryOperator::And,
+            right,
+        } => {
+            let left = rewrite_in_subquery_selection_as_join(*left, from, query_ctx)?;
+            let right = rewrite_in_subquery_selection_as_join(*right, from, query_ctx)?;
+
+            match (left, right) {
+                (Some(left), Some(right)) => Ok(Some(SqlExpr::BinaryOp {
+                    left: Box::new(left),
+                    op: BinaryOperator::And,
+                    right: Box::new(right),
+                })),
+                (Some(selection), None) | (None, Some(selection)) => Ok(Some(selection)),
+                (None, None) => Ok(None),
+            }
+        }
+        SqlExpr::Nested(expr) => rewrite_in_subquery_selection_as_join(*expr, from, query_ctx)
+            .map(|selection| selection.map(|expr| SqlExpr::Nested(Box::new(expr)))),
+        SqlExpr::InSubquery {
+            expr,
+            subquery,
+            negated: false,
+        } => {
+            let subquery_field = in_subquery_projection_field(&subquery)?;
+            let expr = qualify_unqualified_outer_identifier(expr, from)?;
+            let alias = format!(
+                "{}{}",
+                IN_SUBQUERY_ALIAS_PREFIX,
+                query_ctx.get_next_processor_id()
+            );
+            let join_constraint = SqlExpr::BinaryOp {
+                left: expr,
+                op: BinaryOperator::Eq,
+                right: Box::new(SqlExpr::CompoundIdentifier(vec![
+                    Ident::new(alias.clone()),
+                    subquery_field,
+                ])),
+            };
+
+            from.joins.push(Join {
+                relation: TableFactor::Derived {
+                    lateral: false,
+                    subquery,
+                    alias: Some(TableAlias {
+                        name: Ident::new(alias),
+                        columns: vec![],
+                    }),
+                },
+                join_operator: JoinOperator::Inner(JoinConstraint::On(join_constraint)),
+            });
+
+            Ok(None)
+        }
+        SqlExpr::InSubquery { negated: true, .. } => Err(PipelineError::InvalidQuery(
+            "NOT IN subqueries are not supported".to_string(),
+        )),
+        other => Ok(Some(other)),
+    }
+}
+
+fn qualify_unqualified_outer_identifier(
+    expr: Box<SqlExpr>,
+    from: &TableWithJoins,
+) -> Result<Box<SqlExpr>, PipelineError> {
+    match *expr {
+        SqlExpr::Identifier(ident) => {
+            let source_name_or_alias = common::get_name_or_alias(&from.relation)?;
+            let qualifier = source_name_or_alias.1.unwrap_or(source_name_or_alias.0);
+
+            Ok(Box::new(SqlExpr::CompoundIdentifier(vec![
+                Ident::new(qualifier),
+                ident,
+            ])))
+        }
+        other => Ok(Box::new(other)),
+    }
+}
+
+fn in_subquery_projection_field(query: &Query) -> Result<Ident, PipelineError> {
+    let select = match query.body.as_ref() {
+        SetExpr::Select(select) => select,
+        SetExpr::Query(query) => return in_subquery_projection_field(query),
+        _ => {
+            return Err(PipelineError::InvalidQuery(
+                "IN subquery must project exactly one column".to_string(),
+            ))
+        }
+    };
+
+    let [projection] = select.projection.as_slice() else {
+        return Err(PipelineError::InvalidQuery(
+            "IN subquery must project exactly one column".to_string(),
+        ));
+    };
+
+    match projection {
+        SelectItem::UnnamedExpr(SqlExpr::Identifier(ident)) => Ok(ident.clone()),
+        SelectItem::UnnamedExpr(SqlExpr::CompoundIdentifier(idents)) => {
+            idents.last().cloned().ok_or_else(|| {
+                PipelineError::InvalidQuery("IN subquery projection must name a column".to_string())
+            })
+        }
+        SelectItem::ExprWithAlias { alias, .. } => Ok(alias.clone()),
+        _ => Err(PipelineError::InvalidQuery(
+            "IN subquery projection must name a column".to_string(),
+        )),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -530,6 +656,10 @@ fn get_from_source(
             let alias_name = alias.as_ref().map(|alias_ident| {
                 ExpressionBuilder::fullname_from_ident(&[alias_ident.name.clone()])
             });
+            let should_dedup_output = alias_name
+                .as_ref()
+                .map(|name| name.starts_with(IN_SUBQUERY_ALIAS_PREFIX))
+                .unwrap_or(false);
             let is_top_select = false; //inside FROM clause, so not top select
             let name_or = NameOrAlias(name, alias_name);
             query_to_pipeline(
@@ -543,6 +673,9 @@ fn get_from_source(
                 pipeline_idx,
                 is_top_select,
             )?;
+            if should_dedup_output {
+                insert_dedup_processor_to_pipeline(&name_or.0, pipeline, query_ctx, pipeline_idx)?;
+            }
 
             Ok(name_or)
         }
@@ -550,6 +683,57 @@ fn get_from_source(
             UnsupportedSqlError::JoinTable,
         )),
     }
+}
+
+fn insert_dedup_processor_to_pipeline(
+    table_name: &str,
+    pipeline: &mut AppPipeline,
+    query_ctx: &mut QueryContext,
+    pipeline_idx: usize,
+) -> Result<(), PipelineError> {
+    let output_node = query_ctx
+        .pipeline_map
+        .get(&(pipeline_idx, table_name.to_string()))
+        .cloned()
+        .ok_or_else(|| {
+            PipelineError::InvalidQuery(format!(
+                "Unable to deduplicate IN subquery source {table_name}"
+            ))
+        })?;
+
+    let dedup_processor_name = format!("dedup--{}", query_ctx.get_next_processor_id());
+    if !query_ctx
+        .processors_list
+        .insert(dedup_processor_name.clone())
+    {
+        return Err(PipelineError::ProcessorAlreadyExists(dedup_processor_name));
+    }
+
+    let dedup_processor = DedupProcessorFactory::new(
+        dedup_processor_name.clone(),
+        pipeline
+            .flags()
+            .enable_probabilistic_optimizations
+            .in_sets
+            .unwrap_or(false),
+    );
+    pipeline.add_processor(Box::new(dedup_processor), dedup_processor_name.clone());
+    pipeline.connect_nodes(
+        output_node.node,
+        output_node.port,
+        dedup_processor_name.clone(),
+        DEFAULT_PORT_HANDLE,
+    );
+
+    query_ctx.pipeline_map.insert(
+        (pipeline_idx, table_name.to_string()),
+        OutputNodeInfo {
+            node: dedup_processor_name,
+            port: DEFAULT_PORT_HANDLE,
+        },
+    );
+
+    Ok(())
 }
 
 #[derive(Clone, Debug)]

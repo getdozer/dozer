@@ -436,7 +436,7 @@ impl Expression {
                 negated: _,
             } => Ok(ExpressionType::new(
                 FieldType::Boolean,
-                false,
+                true,
                 SourceDefinition::Dynamic,
                 false,
             )),

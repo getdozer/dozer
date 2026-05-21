@@ -1,0 +1,70 @@
+control sortmode rowsort
+
+
+statement ok
+CREATE TABLE actor(
+    actor_id integer NOT NULL,
+    first_name text NOT NULL
+)
+
+statement ok
+CREATE TABLE allowed_actor(
+    actor_id integer NOT NULL
+)
+
+statement ok
+INSERT INTO actor(actor_id, first_name) VALUES (1, 'penelope');
+
+statement ok
+INSERT INTO actor(actor_id, first_name) VALUES (2, 'jack');
+
+statement ok
+INSERT INTO actor(actor_id, first_name) VALUES (3, 'angelina');
+
+statement ok
+INSERT INTO actor(actor_id, first_name) VALUES (4, 'tom');
+
+statement ok
+INSERT INTO allowed_actor(actor_id) VALUES (1);
+
+statement ok
+INSERT INTO allowed_actor(actor_id) VALUES (3);
+
+statement ok
+INSERT INTO allowed_actor(actor_id) VALUES (3);
+
+query I
+select actor_id from actor where actor_id in (1, 3)
+
+query IT
+select actor_id, first_name from actor where actor_id in (select actor_id from allowed_actor)
+
+statement ok
+INSERT INTO allowed_actor(actor_id) VALUES (2);
+
+query IT
+select actor_id, first_name from actor where actor_id in (select actor_id from allowed_actor) and first_name != 'jack'
+
+statement ok
+DELETE FROM allowed_actor WHERE rowid = (SELECT min(rowid) FROM allowed_actor WHERE actor_id = 3);
+
+query IT
+select actor_id, first_name from actor where actor_id in (select actor_id from allowed_actor)
+
+statement ok
+DELETE FROM allowed_actor WHERE actor_id = 3;
+
+query IT
+select actor_id, first_name from actor where actor_id in (select actor_id from allowed_actor)
+
+statement ok
+UPDATE actor SET actor_id = 30 WHERE actor_id = 2;
+
+query IT
+select actor_id, first_name from actor where actor_id in (select actor_id from allowed_actor)
+
+statement ok
+INSERT INTO allowed_actor(actor_id) VALUES (30);
+
+query IT
+select actor_id, first_name from actor where actor_id in (select actor_id from allowed_actor)
