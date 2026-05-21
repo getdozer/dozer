@@ -146,6 +146,27 @@ fn test_correct_into_clause() {
 }
 
 #[test]
+fn test_in_subquery_where_clause() {
+    let sql = r#"
+        SELECT id
+        INTO matched_users
+        FROM users
+        WHERE id IN (SELECT id FROM allowed_users) AND active = 1
+    "#;
+    let runtime = create_test_runtime();
+    let context = statement_to_pipeline(
+        sql,
+        &mut AppPipeline::new_with_default_flags(),
+        None,
+        vec![],
+        runtime,
+    )
+    .unwrap();
+
+    assert!(context.output_tables_map.contains_key("matched_users"));
+}
+
+#[test]
 fn test_missing_into_in_nested_from_clause() {
     let sql = r#"SELECT a FROM (SELECT a from b)"#;
     let runtime = create_test_runtime();
