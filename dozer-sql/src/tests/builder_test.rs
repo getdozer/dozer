@@ -280,3 +280,46 @@ fn test_pipeline_builder() {
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);
 }
+
+#[test]
+fn test_pipeline_builder_with_in_subquery() {
+    let mut pipeline = AppPipeline::new_with_default_flags();
+    let runtime = create_test_runtime();
+    let context = statement_to_pipeline(
+        "SELECT CustomerID INTO results FROM users WHERE Country IN (SELECT Country FROM cities)",
+        &mut pipeline,
+        None,
+        vec![],
+        runtime,
+    )
+    .unwrap();
+
+    let table_info = context.output_tables_map.get("results").unwrap();
+
+    let mut asm = AppSourceManager::new();
+    asm.add(
+        Box::new(TestSourceFactory::new(vec![0, 1])),
+        AppSourceMappings::new(
+            "mem".to_string(),
+            vec![("users".to_string(), 0), ("cities".to_string(), 1)]
+                .into_iter()
+                .collect(),
+        ),
+    )
+    .unwrap();
+
+    pipeline.add_sink(
+        Box::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),
+        "sink".to_string(),
+    );
+    pipeline.connect_nodes(
+        table_info.node.clone(),
+        table_info.port,
+        "sink".to_string(),
+        DEFAULT_PORT_HANDLE,
+    );
+
+    let mut app = App::new(asm);
+    app.add_pipeline(pipeline);
+    app.into_dag().unwrap();
+}
