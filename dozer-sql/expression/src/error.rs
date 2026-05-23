@@ -109,6 +109,13 @@ pub enum Error {
     #[error("JavaScript UDF error: {0}")]
     JavaScript(#[from] crate::javascript::Error),
 
+    #[cfg(feature = "wasm")]
+    #[error("WASM UDF error: {0}")]
+    Wasm(#[from] crate::wasm::Error),
+    #[cfg(not(feature = "wasm"))]
+    #[error("WASM UDF is not enabled")]
+    WasmNotEnabled,
+
     // Legacy error types.
     #[error("Sql error: {0}")]
     SqlError(#[source] OperationError),
