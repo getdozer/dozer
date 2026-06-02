@@ -43,3 +43,4 @@ libtest-mimic = "0.6.1"
 
 [features]
 python = ["dozer-sql/python"]
+wasm = ["dozer-sql/wasm"]
