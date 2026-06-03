@@ -573,6 +573,26 @@ impl ExpressionBuilder {
                         Err(Error::JavaScriptNotEnabled)
                     }
                 }
+
+                UdfType::Wasm(config) => {
+                    #[cfg(feature = "wasm")]
+                    {
+                        self.parse_wasm_udf(
+                            function_name.clone(),
+                            config,
+                            sql_function,
+                            schema,
+                            udfs,
+                        )
+                        .await
+                    }
+
+                    #[cfg(not(feature = "wasm"))]
+                    {
+                        let _ = config;
+                        Err(Error::WasmNotEnabled)
+                    }
+                }
             };
         }
 
@@ -995,6 +1015,34 @@ impl ExpressionBuilder {
         Ok(Expression::JavaScriptUdf(udf))
     }
 
+    #[cfg(feature = "wasm")]
+    async fn parse_wasm_udf(
+        &mut self,
+        name: String,
+        config: &dozer_types::models::udf_config::WasmConfig,
+        function: &Function,
+        schema: &Schema,
+        udfs: &[UdfConfig],
+    ) -> Result<Expression, Error> {
+        let mut args = vec![];
+        for argument in &function.args {
+            let arg = self
+                .parse_sql_function_arg(false, argument, schema, udfs)
+                .await?;
+            args.push(arg);
+        }
+
+        let udf = crate::wasm::Udf::new(
+            name,
+            config.module.clone(),
+            config.function.clone(),
+            FieldType::try_from(config.return_type.as_str())
+                .map_err(|_| Error::InvalidWasmReturnType(config.return_type.clone()))?,
+            args,
+        )?;
+        Ok(Expression::WasmUdf(udf))
+    }
+
     async fn parse_sql_in_list_operator(
         &mut self,
         parse_aggregations: bool,
@@ -1061,4 +1109,119 @@ pub fn extend_schema_source_def(schema: &Schema, name: &NameOrAlias) -> Schema {
     output_schema.fields = fields;
 
     output_schema
+}
+
+#[cfg(test)]
+mod wasm_builder_tests {
+    use super::*;
+    #[cfg(feature = "wasm")]
+    use dozer_types::types::{Field, Record};
+    use dozer_types::{
+        models::udf_config::{UdfConfig, UdfType, WasmConfig},
+        types::FieldDefinition,
+    };
+    use sqlparser::{
+        ast::{SelectItem, SetExpr, Statement},
+        dialect::GenericDialect,
+        parser::Parser,
+    };
+
+    fn first_projection_expr(sql: &str) -> Expr {
+        let dialect = GenericDialect {};
+        let ast = Parser::parse_sql(&dialect, sql).unwrap();
+        let Statement::Query(query) = ast.into_iter().next().unwrap() else {
+            panic!("expected query");
+        };
+        let SetExpr::Select(select) = *query.body else {
+            panic!("expected select");
+        };
+        match select.projection.into_iter().next().unwrap() {
+            SelectItem::UnnamedExpr(expr) => expr,
+            _ => panic!("expected unnamed expression"),
+        }
+    }
+
+    fn schema(field_type: FieldType) -> Schema {
+        let mut schema = Schema::new();
+        schema.field(
+            FieldDefinition::new(
+                "value".to_string(),
+                field_type,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        );
+        schema
+    }
+
+    fn wasm_udf(module: String) -> Vec<UdfConfig> {
+        vec![UdfConfig {
+            name: "add_one".to_string(),
+            config: UdfType::Wasm(WasmConfig {
+                module,
+                function: None,
+                return_type: "int".to_string(),
+            }),
+        }]
+    }
+
+    #[cfg(feature = "wasm")]
+    fn write_wasm_module() -> String {
+        let wasm = wat::parse_str(
+            r#"
+            (module
+              (func (export "add_one") (param i64) (result i64)
+                local.get 0
+                i64.const 1
+                i64.add))
+            "#,
+        )
+        .unwrap();
+        let path = std::env::temp_dir().join(format!(
+            "dozer-expression-builder-wasm-{}.wasm",
+            std::process::id()
+        ));
+        std::fs::write(&path, wasm).unwrap();
+        path.to_string_lossy().to_string()
+    }
+
+    #[cfg(feature = "wasm")]
+    #[test]
+    fn builds_and_evaluates_wasm_udf() {
+        let sql_expr = first_projection_expr("SELECT add_one(value) FROM t");
+        let schema = schema(FieldType::Int);
+        let runtime = Arc::new(Runtime::new().unwrap());
+        let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime.clone());
+        let mut expression = runtime
+            .block_on(builder.build(false, &sql_expr, &schema, &wasm_udf(write_wasm_module())))
+            .unwrap();
+        let record = Record::new(vec![Field::Int(41)]);
+
+        assert_eq!(
+            expression.evaluate(&record, &schema).unwrap(),
+            Field::Int(42)
+        );
+        assert_eq!(
+            expression.get_type(&schema).unwrap().return_type,
+            FieldType::Int
+        );
+    }
+
+    #[cfg(not(feature = "wasm"))]
+    #[test]
+    fn wasm_udf_requires_feature() {
+        let sql_expr = first_projection_expr("SELECT add_one(value) FROM t");
+        let schema = schema(FieldType::Int);
+        let runtime = Arc::new(Runtime::new().unwrap());
+        let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime.clone());
+        let result = runtime.block_on(builder.build(
+            false,
+            &sql_expr,
+            &schema,
+            &wasm_udf("./missing.wasm".to_string()),
+        ));
+
+        assert!(matches!(result, Err(Error::WasmNotEnabled)));
+    }
 }
