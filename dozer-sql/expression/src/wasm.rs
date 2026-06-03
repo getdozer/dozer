@@ -1,4 +1,4 @@
-use std::{fs, sync::Arc};
+use std::{convert::TryFrom, fs, sync::Arc};
 
 use dozer_types::{
     ordered_float::OrderedFloat,
@@ -62,6 +62,10 @@ pub enum Error {
     },
     #[error("Invalid null argument for WASM function {function_name}")]
     NullArgument { function_name: String },
+    #[error("WASM uint argument {value} is out of i64 ABI range for function {function_name}")]
+    UIntArgumentOutOfRange { function_name: String, value: u64 },
+    #[error("WASM uint return value {value} is out of u64 ABI range for function {function_name}")]
+    UIntReturnOutOfRange { function_name: String, value: i64 },
     #[error(
         "WASM function {function_name} expected {expected:?}, got {actual:?} at argument {index}"
     )]
@@ -216,7 +220,12 @@ impl Udf {
 fn field_to_wasm_value(function_name: &str, field: Field) -> Result<Val, Error> {
     match field {
         Field::Int(value) => Ok(Val::I64(value)),
-        Field::UInt(value) => Ok(Val::I64(value as i64)),
+        Field::UInt(value) => Ok(Val::I64(i64::try_from(value).map_err(|_| {
+            Error::UIntArgumentOutOfRange {
+                function_name: function_name.to_string(),
+                value,
+            }
+        })?)),
         Field::Float(value) => Ok(Val::F64(F64::from(value.0))),
         Field::Boolean(value) => Ok(Val::I32(i32::from(value))),
         Field::Null => Err(Error::NullArgument {
@@ -248,7 +257,14 @@ fn wasm_value_to_field(
 ) -> Result<Field, Error> {
     match (return_type, value) {
         (FieldType::Int, Val::I64(value)) => Ok(Field::Int(value)),
-        (FieldType::UInt, Val::I64(value)) => Ok(Field::UInt(value as u64)),
+        (FieldType::UInt, Val::I64(value)) => {
+            Ok(Field::UInt(u64::try_from(value).map_err(|_| {
+                Error::UIntReturnOutOfRange {
+                    function_name: function_name.to_string(),
+                    value,
+                }
+            })?))
+        }
         (FieldType::Float, Val::F64(value)) => Ok(Field::Float(OrderedFloat(value.to_float()))),
         (FieldType::Boolean, Val::I32(value)) => Ok(Field::Boolean(value != 0)),
         (return_type, value) => Err(Error::InvalidReturnType {
@@ -338,6 +354,62 @@ mod tests {
             udf.evaluate(&record, &schema).unwrap(),
             Field::Boolean(false)
         );
+    }
+
+    #[test]
+    fn rejects_uint_argument_out_of_i64_range() {
+        let module = write_wasm_module(
+            "identity-uint",
+            r#"
+            (module
+              (func (export "identity") (param i64) (result i64)
+                local.get 0))
+            "#,
+        );
+        let mut udf = Udf::new(
+            "identity".to_string(),
+            module,
+            None,
+            FieldType::UInt,
+            vec![Expression::Column { index: 0 }],
+        )
+        .unwrap();
+        let schema = schema(FieldType::UInt);
+        let record = Record::new(vec![Field::UInt(i64::MAX as u64 + 1)]);
+        let error = udf.evaluate(&record, &schema).unwrap_err();
+
+        assert!(matches!(
+            error,
+            crate::error::Error::Wasm(Error::UIntArgumentOutOfRange { .. })
+        ));
+    }
+
+    #[test]
+    fn rejects_negative_uint_return_value() {
+        let module = write_wasm_module(
+            "negative-uint",
+            r#"
+            (module
+              (func (export "negative") (result i64)
+                i64.const -1))
+            "#,
+        );
+        let mut udf = Udf::new(
+            "negative".to_string(),
+            module,
+            None,
+            FieldType::UInt,
+            vec![],
+        )
+        .unwrap();
+        let schema = schema(FieldType::UInt);
+        let record = Record::new(vec![]);
+        let error = udf.evaluate(&record, &schema).unwrap_err();
+
+        assert!(matches!(
+            error,
+            crate::error::Error::Wasm(Error::UIntReturnOutOfRange { .. })
+        ));
     }
 
     #[test]
