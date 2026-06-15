@@ -135,7 +135,7 @@ impl Connector for EthLogConnector {
     async fn validate_connection(&mut self) -> Result<(), BoxedError> {
         // Return contract parsing error
         for contract in &self.config.contracts {
-            serde_json::from_str(&contract.abi)?;
+            serde_json::from_str::<serde_json::Value>(&contract.abi)?;
         }
         Ok(())
     }

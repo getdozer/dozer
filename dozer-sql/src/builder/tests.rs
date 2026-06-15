@@ -1,6 +1,18 @@
 use super::statement_to_pipeline;
 use crate::{errors::PipelineError, tests::utils::create_test_runtime};
 use dozer_core::app::AppPipeline;
+
+fn build_pipeline(sql: &str) -> Result<super::QueryContext, PipelineError> {
+    let runtime = create_test_runtime();
+    statement_to_pipeline(
+        sql,
+        &mut AppPipeline::new_with_default_flags(),
+        None,
+        vec![],
+        runtime,
+    )
+}
+
 #[test]
 #[should_panic]
 fn disallow_zero_outgoing_ndes() {
@@ -143,6 +155,88 @@ fn test_correct_into_clause() {
     );
     //check if the result is ok
     assert!(result.is_ok());
+}
+
+#[test]
+fn test_in_subquery_where_clause_keeps_residual_predicates() {
+    let sql = r#"
+        SELECT users.CustomerID
+        INTO matched_customers
+        FROM users
+        WHERE users.Spending > 10
+            AND users.CustomerID IN (
+                SELECT allowed.CustomerID FROM allowed
+            )
+    "#;
+
+    let context = build_pipeline(sql).unwrap();
+
+    assert!(context.output_tables_map.contains_key("matched_customers"));
+    assert!(context.used_sources.contains(&"users".to_string()));
+    assert!(context.used_sources.contains(&"allowed".to_string()));
+}
+
+#[test]
+fn test_multiple_in_subqueries_can_be_chained() {
+    let sql = r#"
+        SELECT users.CustomerID
+        INTO matched_customers
+        FROM users
+        WHERE users.CustomerID IN (
+                SELECT allowed.CustomerID FROM allowed
+            )
+            AND users.Country IN (
+                SELECT allowed_countries.Country FROM allowed_countries
+            )
+    "#;
+
+    let context = build_pipeline(sql).unwrap();
+
+    assert!(context.output_tables_map.contains_key("matched_customers"));
+    assert!(context.used_sources.contains(&"users".to_string()));
+    assert!(context.used_sources.contains(&"allowed".to_string()));
+    assert!(context
+        .used_sources
+        .contains(&"allowed_countries".to_string()));
+}
+
+#[test]
+fn test_not_in_subquery_is_rejected() {
+    let sql = r#"
+        SELECT users.CustomerID
+        INTO matched_customers
+        FROM users
+        WHERE users.CustomerID NOT IN (
+            SELECT blocked.CustomerID FROM blocked
+        )
+    "#;
+
+    let result = build_pipeline(sql);
+
+    assert!(matches!(
+        result,
+        Err(PipelineError::InvalidQuery(message)) if message.contains("NOT IN subqueries")
+    ));
+}
+
+#[test]
+fn test_in_subquery_rejects_multi_column_projection() {
+    let sql = r#"
+        SELECT users.CustomerID
+        INTO matched_customers
+        FROM users
+        WHERE users.CustomerID IN (
+            SELECT allowed.CustomerID, allowed.Country FROM allowed
+        )
+    "#;
+
+    let result = build_pipeline(sql);
+
+    assert!(matches!(
+        result,
+        Err(PipelineError::InvalidQuery(message))
+            if message.contains("exactly one column")
+    ));
 }
 
 #[test]

@@ -22,12 +22,15 @@ async-recursion = "1.0.5"
 
 dozer-deno = { path = "../../dozer-deno", optional = true }
 deno_core = { workspace = true, optional = true }
+wasmi = { version = "1.0.9", optional = true }
 
 [dev-dependencies]
 proptest = "1.2.0"
+wat = "1.248.0"
 
 [features]
 bigdecimal = ["dep:bigdecimal", "sqlparser/bigdecimal"]
 python = ["dozer-types/python-auto-initialize"]
 onnx = ["dep:ort", "dep:ndarray", "dep:half"]
 javascript = ["dep:dozer-deno", "dep:deno_core"]
+wasm = ["dep:wasmi"]

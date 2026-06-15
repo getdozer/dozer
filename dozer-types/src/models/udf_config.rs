@@ -1,7 +1,6 @@
 use schemars::JsonSchema;
 
 use crate::serde::{Deserialize, Serialize};
-
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct UdfConfig {
@@ -16,6 +15,7 @@ pub struct UdfConfig {
 pub enum UdfType {
     Onnx(OnnxConfig),
     JavaScript(JavaScriptConfig),
+    Wasm(WasmConfig),
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
@@ -30,4 +30,15 @@ pub struct OnnxConfig {
 pub struct JavaScriptConfig {
     /// path to the module file
     pub module: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WasmConfig {
+    /// path to the WebAssembly module file
+    pub module: String,
+    /// exported function name. Defaults to the UDF name when omitted.
+    pub function: Option<String>,
+    /// return type of the exported function
+    pub return_type: String,
 }
