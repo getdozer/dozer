@@ -25,5 +25,8 @@ tokio-postgres = { git = "https://github.com/MaterializeInc/rust-postgres" }
 clickhouse-rs = { git = "https://github.com/getdozer/clickhouse-rs" }
 clickhouse-rs-cityhash-sys = { git = "https://github.com/getdozer/clickhouse-rs" }
 
+serde = { path = "dozer-patches/serde" }
+serde_core = { path = "dozer-patches/serde_core" }
+
 [profile.dev]
 debug = 0
