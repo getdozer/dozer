@@ -2084,8 +2084,45 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Wasm"
+          ],
+          "properties": {
+            "Wasm": {
+              "$ref": "#/definitions/WasmConfig"
+            }
+          },
+          "additionalProperties": false
         }
       ]
+    },
+    "WasmConfig": {
+      "type": "object",
+      "required": [
+        "module",
+        "return_type"
+      ],
+      "properties": {
+        "function": {
+          "description": "exported function name. Defaults to the UDF name when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "module": {
+          "description": "path to the WebAssembly module file",
+          "type": "string"
+        },
+        "return_type": {
+          "description": "return type of the exported function",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     },
     "WebhookConfig": {
       "examples": [
