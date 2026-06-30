@@ -2,15 +2,20 @@ use crate::aggregation::factory::AggregationProcessorFactory;
 use crate::builder::PipelineError::InvalidQuery;
 use crate::errors::PipelineError;
 use crate::selection::factory::SelectionProcessorFactory;
+use crate::selection::in_subquery::{
+    InSubqueryProcessorFactory, LEFT_IN_SUBQUERY_PORT, RIGHT_IN_SUBQUERY_PORT,
+};
 use dozer_core::app::AppPipeline;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql_expression::builder::{ExpressionBuilder, NameOrAlias};
-use dozer_sql_expression::sqlparser::ast::{SetOperator, SetQuantifier, TableFactor};
+use dozer_sql_expression::sqlparser::ast::{
+    BinaryOperator, Expr as SqlExpr, SetOperator, SetQuantifier, TableFactor,
+};
 use dozer_types::models::udf_config::UdfConfig;
 
 use dozer_sql_expression::sqlparser::{
-    ast::{Query, Select, SetExpr, Statement},
+    ast::{Query, Select, SelectItem, SetExpr, Statement},
     dialect::DozerDialect,
     parser::Parser,
 };
@@ -292,34 +297,97 @@ fn select_to_pipeline(
 
     pipeline.add_processor(Box::new(aggregation), gen_agg_name.clone());
 
+    let mut current_node = gen_product_name;
+    let mut current_port = product_output_port;
+
     // Where clause
     if let Some(selection) = select.selection {
-        let selection = SelectionProcessorFactory::new(
-            gen_selection_name.clone(),
-            selection,
-            query_ctx.udfs.clone(),
-            query_ctx.runtime.clone(),
-        );
+        let (in_subqueries, residual_selection) = split_in_subquery_filters(selection)?;
 
-        pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
+        for (expr, subquery, negated) in in_subqueries {
+            let subquery_name = format!("in_subquery_source_{}", query_ctx.get_next_processor_id());
+            query_to_pipeline(
+                TableInfo {
+                    name: NameOrAlias(subquery_name.clone(), None),
+                    override_name: None,
+                },
+                subquery,
+                pipeline,
+                query_ctx,
+                pipeline_idx,
+                false,
+            )?;
 
-        pipeline.connect_nodes(
-            gen_product_name,
-            product_output_port,
-            gen_selection_name.clone(),
-            DEFAULT_PORT_HANDLE,
-        );
+            let subquery_output = query_ctx
+                .pipeline_map
+                .get(&(pipeline_idx, subquery_name.clone()))
+                .ok_or_else(|| {
+                    PipelineError::InvalidQuery(format!(
+                        "Invalid IN subquery source {subquery_name:?}"
+                    ))
+                })?
+                .clone();
 
-        pipeline.connect_nodes(
-            gen_selection_name,
-            DEFAULT_PORT_HANDLE,
-            gen_agg_name.clone(),
-            DEFAULT_PORT_HANDLE,
-        );
+            let in_subquery_name = format!("in_subquery--{}", query_ctx.get_next_processor_id());
+            let in_subquery = InSubqueryProcessorFactory::new(
+                in_subquery_name.clone(),
+                expr,
+                negated,
+                query_ctx.udfs.clone(),
+                query_ctx.runtime.clone(),
+            );
+            pipeline.add_processor(Box::new(in_subquery), in_subquery_name.clone());
+            pipeline.connect_nodes(
+                current_node,
+                current_port,
+                in_subquery_name.clone(),
+                LEFT_IN_SUBQUERY_PORT,
+            );
+            pipeline.connect_nodes(
+                subquery_output.node,
+                subquery_output.port,
+                in_subquery_name.clone(),
+                RIGHT_IN_SUBQUERY_PORT,
+            );
+            current_node = in_subquery_name;
+            current_port = DEFAULT_PORT_HANDLE;
+        }
+
+        if let Some(selection) = residual_selection {
+            let selection = SelectionProcessorFactory::new(
+                gen_selection_name.clone(),
+                selection,
+                query_ctx.udfs.clone(),
+                query_ctx.runtime.clone(),
+            );
+
+            pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
+
+            pipeline.connect_nodes(
+                current_node,
+                current_port,
+                gen_selection_name.clone(),
+                DEFAULT_PORT_HANDLE,
+            );
+
+            pipeline.connect_nodes(
+                gen_selection_name,
+                DEFAULT_PORT_HANDLE,
+                gen_agg_name.clone(),
+                DEFAULT_PORT_HANDLE,
+            );
+        } else {
+            pipeline.connect_nodes(
+                current_node,
+                current_port,
+                gen_agg_name.clone(),
+                DEFAULT_PORT_HANDLE,
+            );
+        }
     } else {
         pipeline.connect_nodes(
-            gen_product_name,
-            product_output_port,
+            current_node,
+            current_port,
             gen_agg_name.clone(),
             DEFAULT_PORT_HANDLE,
         );
@@ -358,6 +426,72 @@ fn select_to_pipeline(
     }
 
     Ok(gen_agg_name)
+}
+
+fn split_in_subquery_filters(
+    selection: SqlExpr,
+) -> Result<(Vec<(SqlExpr, Query, bool)>, Option<SqlExpr>), PipelineError> {
+    match selection {
+        SqlExpr::BinaryOp {
+            left,
+            op: BinaryOperator::And,
+            right,
+        } => {
+            let (mut left_subqueries, left_residual) = split_in_subquery_filters(*left)?;
+            let (mut right_subqueries, right_residual) = split_in_subquery_filters(*right)?;
+            left_subqueries.append(&mut right_subqueries);
+            Ok((
+                left_subqueries,
+                combine_residual_filters(left_residual, right_residual),
+            ))
+        }
+        SqlExpr::Nested(expr) => {
+            let (subqueries, residual) = split_in_subquery_filters(*expr)?;
+            Ok((
+                subqueries,
+                residual.map(|expr| SqlExpr::Nested(Box::new(expr))),
+            ))
+        }
+        SqlExpr::InSubquery {
+            expr,
+            subquery,
+            negated,
+        } => {
+            validate_in_subquery_projection(&subquery)?;
+            Ok((vec![(*expr, *subquery, negated)], None))
+        }
+        expr => Ok((vec![], Some(expr))),
+    }
+}
+
+fn combine_residual_filters(left: Option<SqlExpr>, right: Option<SqlExpr>) -> Option<SqlExpr> {
+    match (left, right) {
+        (Some(left), Some(right)) => Some(SqlExpr::BinaryOp {
+            left: Box::new(left),
+            op: BinaryOperator::And,
+            right: Box::new(right),
+        }),
+        (Some(expr), None) | (None, Some(expr)) => Some(expr),
+        (None, None) => None,
+    }
+}
+
+fn validate_in_subquery_projection(query: &Query) -> Result<(), PipelineError> {
+    match query.body.as_ref() {
+        SetExpr::Select(select) if select.projection.len() != 1 => Err(
+            PipelineError::InvalidQuery("IN subquery must return exactly one column".to_string()),
+        ),
+        SetExpr::Select(select) => match select.projection.first() {
+            Some(SelectItem::Wildcard(_)) | Some(SelectItem::QualifiedWildcard(_, _)) => {
+                Err(PipelineError::InvalidQuery(
+                    "IN subquery must project a single expression or column".to_string(),
+                ))
+            }
+            _ => Ok(()),
+        },
+        SetExpr::Query(query) => validate_in_subquery_projection(query),
+        _ => Ok(()),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
