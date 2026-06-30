@@ -220,6 +220,66 @@ impl Sink for TestSink {
 }
 
 #[test]
+fn test_in_subquery_pipeline_execution() {
+    let mut pipeline = AppPipeline::new_with_default_flags();
+    let runtime = create_test_runtime();
+    let context = statement_to_pipeline(
+        "SELECT u.CustomerID \
+         INTO results \
+         FROM users u \
+         WHERE u.CustomerID IN (SELECT g.CustomerID FROM groups g)",
+        &mut pipeline,
+        None,
+        vec![],
+        runtime.clone(),
+    )
+    .unwrap();
+
+    let table_info = context.output_tables_map.get("results").unwrap();
+
+    let mut asm = AppSourceManager::new();
+    asm.add(
+        Box::new(TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE])),
+        AppSourceMappings::new(
+            "mem".to_string(),
+            vec![
+                ("users".to_string(), DEFAULT_PORT_HANDLE),
+                ("groups".to_string(), DEFAULT_PORT_HANDLE),
+            ]
+            .into_iter()
+            .collect(),
+        ),
+    )
+    .unwrap();
+
+    pipeline.add_sink(
+        Box::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),
+        "sink".to_string(),
+    );
+    pipeline.connect_nodes(
+        table_info.node.clone(),
+        table_info.port,
+        "sink".to_string(),
+        DEFAULT_PORT_HANDLE,
+    );
+
+    let mut app = App::new(asm);
+    app.add_pipeline(pipeline);
+    let dag = app.into_dag().unwrap();
+
+    let runtime_clone = runtime.clone();
+    let handle = runtime.block_on(async move {
+        DagExecutor::new(dag, Default::default())
+            .await
+            .unwrap()
+            .start(pending::<()>(), Default::default(), runtime_clone)
+            .await
+            .unwrap()
+    });
+    handle.join().unwrap();
+}
+
+#[test]
 fn test_pipeline_builder() {
     let mut pipeline = AppPipeline::new_with_default_flags();
     let runtime = create_test_runtime();
