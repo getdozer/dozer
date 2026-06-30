@@ -5,6 +5,10 @@ Dozer is a **real time data movement tool leveraging CDC from various sources to
 Dozer is magnitudes of times faster than Debezium+Kafka and natively supports stateless transformations. 
 Primarily used for moving data into warehouses. In our own application, we move data to **Clickhouse** and build data APIs and integration with LLMs. 
 
+## Getting Started
+
+Watch the [Getting Started video](https://youtu.be/pVfyMfNrlD4) for a quick introduction to Dozer, or see the [Community Videos](#community-videos) section below for more tutorials.
+
 ## How to use it
 Dozer runs with a single configuration file like the following:
 ```yaml
@@ -51,3 +55,13 @@ Full documentation can be found [here](https://github.com/getdozer/dozer/blob/ma
 | Big Query  | ✅            |                     |
 | Oracle     | ✅            | **Enterprise Only** |
 | Aerospike  | ✅            | **Enterprise Only** |
+
+## Community Videos
+
+Community-contributed videos covering Dozer features, demos, and use cases:
+
+| Title | Author | Description |
+| ----- | ------ | ----------- |
+| [Getting Started with Dozer](https://youtu.be/pVfyMfNrlD4) | Dozer Team | Official introduction and quickstart demo |
+
+> Want to add your video? Submit a PR adding a row to this table. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
