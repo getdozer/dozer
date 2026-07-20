@@ -1,4 +1,4 @@
-use crate::models::udf_config::{OnnxConfig, UdfConfig, UdfType};
+use crate::models::udf_config::{OnnxConfig, UdfConfig, UdfType, WasmConfig};
 
 #[test]
 fn standard() {
@@ -15,5 +15,22 @@ fn standard() {
         name: "is_fraudulent".to_string(),
     };
     let expected = udf_conf;
+    assert_eq!(expected, deserializer_result);
+}
+
+#[test]
+fn wasm() {
+    let udf_config = r#"
+    name: add_one
+    config: !Wasm
+      path: ./functions/add_one.wasm
+  "#;
+    let deserializer_result = serde_yaml::from_str::<UdfConfig>(udf_config).unwrap();
+    let expected = UdfConfig {
+        config: UdfType::Wasm(WasmConfig {
+            path: "./functions/add_one.wasm".to_string(),
+        }),
+        name: "add_one".to_string(),
+    };
     assert_eq!(expected, deserializer_result);
 }

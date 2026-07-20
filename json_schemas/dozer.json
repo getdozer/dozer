@@ -2084,8 +2084,33 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Wasm"
+          ],
+          "properties": {
+            "Wasm": {
+              "$ref": "#/definitions/WasmConfig"
+            }
+          },
+          "additionalProperties": false
         }
       ]
+    },
+    "WasmConfig": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "description": "path to the WebAssembly module file",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     },
     "WebhookConfig": {
       "examples": [
