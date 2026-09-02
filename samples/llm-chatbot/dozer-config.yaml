@@ -1,0 +1,60 @@
+app:
+  home_dir: ".dozer"
+
+connections:
+  - config:
+      user: dozer
+      password: dozer
+      host: postgres
+      port: 5432
+      database: dozerdb
+    name: pg
+    type: postgres
+
+sources:
+  - name: customers
+    table_name: customers
+    connection: pg
+  - name: transactions
+    table_name: transactions
+    connection: pg
+  - name: credit_cards
+    table_name: credit_cards
+    connection: pg
+
+sql:
+  - name: customer_profiles
+    sql: |
+      SELECT
+        c.id,
+        c.name,
+        c.age,
+        c.income,
+        c.risk_tolerance,
+        COALESCE(SUM(t.amount) FILTER (WHERE t.category = 'travel'), 0) AS travel_spend,
+        COALESCE(SUM(t.amount) FILTER (WHERE t.category = 'dining'), 0) AS dining_spend,
+        COALESCE(SUM(t.amount) FILTER (WHERE t.category = 'groceries'), 0) AS groceries_spend
+      FROM customers c
+      LEFT JOIN transactions t ON c.id = t.customer_id
+      GROUP BY c.id, c.name, c.age, c.income, c.risk_tolerance
+
+  - name: recent_transactions
+    sql: |
+      SELECT
+        t.id,
+        t.customer_id,
+        t.amount,
+        t.category,
+        t.merchant,
+        t.transaction_date
+      FROM transactions t
+      ORDER BY t.transaction_date DESC
+      LIMIT 100
+
+endpoints:
+  rest:
+    enabled: true
+    address: 0.0.0.0:8080
+  grpc:
+    enabled: true
+    address: 0.0.0.0:50051

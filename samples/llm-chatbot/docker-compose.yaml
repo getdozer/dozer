@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: llm_chatbot_postgres
+    environment:
+      POSTGRES_USER: dozer
+      POSTGRES_PASSWORD: dozer
+      POSTGRES_DB: dozerdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./seed.sql:/docker-entrypoint-initdb.d/seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dozer"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  dozer:
+    image: getdozer/dozer:latest
+    container_name: llm_chatbot_dozer
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./dozer-config.yaml:/app/dozer-config.yaml
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    command: ["--config-path", "/app/dozer-config.yaml"]
