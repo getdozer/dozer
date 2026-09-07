@@ -1,0 +1,6 @@
+customer_id,name,age,income_band,segment,goals,risk
+c1,Maya Chen,34,premium,frequent_traveler,"travel rewards, lounge access, no fx fees",medium
+c2,Omar Reid,27,starter,young_pro,"cashback on groceries, no annual fee",low
+c3,Priya Shah,42,mass_affluent,family,"groceries, school costs, balance transfer",low
+c4,Leo Park,31,premium,nomad,"travel, dining, subscription credits",medium
+c5,Ana Costa,22,starter,student,"build credit, no fee, campus spend",low

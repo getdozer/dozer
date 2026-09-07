@@ -1,0 +1,62 @@
+app_name: llm-chatbot
+version: 1
+
+connections:
+  - name: bank
+    config: !LocalStorage
+      details:
+        path: ./data
+      tables:
+        - !Table
+          name: customers
+          config: !CSV
+            path: customers
+            extension: .csv
+        - !Table
+          name: transactions
+          config: !CSV
+            path: transactions
+            extension: .csv
+        - !Table
+          name: cards
+          config: !CSV
+            path: cards
+            extension: .csv
+
+sources:
+  - name: customers
+    table_name: customers
+    connection: bank
+  - name: transactions
+    table_name: transactions
+    connection: bank
+  - name: cards
+    table_name: cards
+    connection: bank
+
+# same join the python app uses for customer_360
+sql: |
+  SELECT
+    c.customer_id,
+    c.name,
+    c.income_band,
+    c.segment,
+    c.goals,
+    COUNT(t.txn_id) as txn_count,
+    SUM(t.amount) as spend
+  INTO customer_360
+  FROM customers c
+  LEFT JOIN transactions t ON c.customer_id = t.customer_id
+  GROUP BY c.customer_id, c.name, c.income_band, c.segment, c.goals;
+
+  SELECT card_id, name, annual_fee, rewards, eligibility, caveat
+  INTO card_catalog
+  FROM cards;
+
+sinks:
+  - name: customer_360
+    config: !Dummy
+      table_name: customer_360
+  - name: card_catalog
+    config: !Dummy
+      table_name: card_catalog

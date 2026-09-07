@@ -1,0 +1,5 @@
+langchain>=0.2,<0.4
+langchain-core>=0.2,<0.4
+langchain-chroma>=0.1,<0.3
+langchain-openai>=0.1,<0.3
+chromadb>=0.5,<0.7
