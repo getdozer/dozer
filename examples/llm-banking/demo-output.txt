@@ -1,0 +1,48 @@
+$ scripts/demo.sh
+
+test_config_text_shape (test_config.ConfigTests.test_config_text_shape) ... ok
+test_csvs_exist_and_have_rows (test_config.ConfigTests.test_csvs_exist_and_have_rows) ... ok
+test_schema_has_sinks_not_endpoints (test_config.ConfigTests.test_schema_has_sinks_not_endpoints) ... ok
+test_sql_mentions_join (test_config.ConfigTests.test_sql_mentions_join) ... ok
+test_local_answer_mentions_customer (test_recommend.RankTests.test_local_answer_mentions_customer) ... ok
+test_profile_has_spend_breakdown (test_recommend.RankTests.test_profile_has_spend_breakdown) ... ok
+test_starter_prefers_no_fee (test_recommend.RankTests.test_starter_prefers_no_fee) ... ok
+test_travel_customer_gets_travel_card (test_recommend.RankTests.test_travel_customer_gets_travel_card) ... ok
+test_travel_query_surfaces_travel_card (test_vector.VectorTests.test_travel_query_surfaces_travel_card) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.002s
+
+OK
+
+$ python app.py --customer-id cust_002
+--- profile ---
+Customer cust_002 (travel, premium income). Goals: travel hotels flights. Risk: medium. Total recent spend $1265.50. Breakdown: flights $860.00, hotels $310.50, dining $95.00.
+--- ranked ---
+1. Dozer Travel Signature score=25 (flights spend fits rewards; hotels spend fits rewards; dining spend fits rewards; goal 'travel'; premium ok with fee)
+2. Dozer Reserve score=17 (hotels spend fits rewards; dining spend fits rewards; goal 'travel'; premium ok with fee)
+3. Dozer Cash Everyday score=3 (dining spend fits rewards)
+4. Dozer Starter Secure score=0 (baseline)
+--- vector hits ---
+* [product] Dozer Travel Signature (fee $95): rewards on travel flights hotels dining. Intro: 60k points after 3k spend. Eligibility...
+* [customer] Customer cust_002 (travel, premium income). Goals: travel hotels flights. Risk: medium. Total recent spend $1265.50. Bre...
+* [product] Dozer Reserve (fee $450): rewards on travel lounge dining hotels. Intro: 100k points after 5k spend. Eligibility: excell...
+--- answer ---
+Q: Which credit card should we offer this customer and why?
+For cust_002 I'd lead with Dozer Travel Signature (score 25). Reason: flights spend fits rewards; hotels spend fits rewards; dining spend fits rewards; goal 'travel'; premium ok with fee. Profile spend $1265.50 skewed to flights, hotels, dining.
+
+$ python app.py --customer-id cust_003
+--- profile ---
+Customer cust_003 (student, starter income). Goals: build credit no annual fee. Risk: low. Total recent spend $67.39. Breakdown: groceries $28.90, transit $22.50, streaming $15.99.
+--- ranked ---
+1. Dozer Starter Secure score=9 (goal 'build credit'; no fee; starter-friendly)
+2. Dozer Cash Everyday score=5 (groceries spend fits rewards; no fee)
+3. Dozer Travel Signature score=0 (baseline)
+4. Dozer Reserve score=-3 (eligibility stretch)
+--- vector hits ---
+* [product] Dozer Starter Secure (fee $0): rewards on build credit no annual fee. Intro: no intro bonus. Eligibility: thin credit fi...
+* [customer] Customer cust_003 (student, starter income). Goals: build credit no annual fee. Risk: low. Total recent spend $67.39. Br...
+* [product] Dozer Cash Everyday (fee $0): rewards on cashback groceries gas dining. Intro: 2% groceries 1% other. Eligibility: fair ...
+--- answer ---
+Q: Which credit card should we offer this customer and why?
+For cust_003 I'd lead with Dozer Starter Secure (score 9). Reason: goal 'build credit'; no fee; starter-friendly. Profile spend $67.39 skewed to groceries, transit, streaming.

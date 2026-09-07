@@ -1,0 +1,16 @@
+transaction_id,customer_id,merchant_category,amount_usd,txn_date
+txn_001,cust_001,groceries,86.40,2024-11-02
+txn_002,cust_001,dining,42.10,2024-11-05
+txn_003,cust_001,groceries,61.25,2024-11-12
+txn_004,cust_001,gas,38.00,2024-11-15
+txn_005,cust_002,flights,620.00,2024-11-01
+txn_006,cust_002,hotels,310.50,2024-11-03
+txn_007,cust_002,dining,95.00,2024-11-08
+txn_008,cust_002,flights,240.00,2024-11-18
+txn_009,cust_003,groceries,28.90,2024-11-04
+txn_010,cust_003,streaming,15.99,2024-11-07
+txn_011,cust_003,transit,22.50,2024-11-14
+txn_012,cust_004,flights,890.00,2024-11-02
+txn_013,cust_004,dining,180.00,2024-11-06
+txn_014,cust_004,hotels,450.00,2024-11-09
+txn_015,cust_004,dining,95.50,2024-11-16

@@ -1,0 +1,5 @@
+customer_id,age,income_band,segment,goals,risk_tolerance
+cust_001,34,mid,everyday,cashback groceries dining,medium
+cust_002,41,premium,travel,travel hotels flights,medium
+cust_003,29,starter,student,build credit no annual fee,low
+cust_004,52,premium,business,travel dining lounge access,high
