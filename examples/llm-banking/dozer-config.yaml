@@ -1,0 +1,98 @@
+# Current Dozer shape: connections -> sources -> sql -> sinks.
+# No REST endpoints here — those went away. App owns the API / LLM side.
+app_name: llm-banking-sample
+version: 1
+
+connections:
+  - name: bank_csvs
+    config: !LocalStorage
+      details:
+        path: ./data
+      tables:
+        - name: customer_profiles
+          config: !CSV
+            path: customer_profiles
+            extension: .csv
+        - name: transactions
+          config: !CSV
+            path: transactions
+            extension: .csv
+        - name: credit_card_products
+          config: !CSV
+            path: credit_card_products
+            extension: .csv
+
+sources:
+  - name: customer_profiles
+    table_name: customer_profiles
+    connection: bank_csvs
+  - name: transactions
+    table_name: transactions
+    connection: bank_csvs
+  - name: credit_card_products
+    table_name: credit_card_products
+    connection: bank_csvs
+
+# Unified customer profile — same idea as the blog post.
+sql: |
+  SELECT
+    c.customer_id,
+    c.segment,
+    c.income_band,
+    c.goals,
+    c.risk_tolerance,
+    SUM(t.amount_usd) AS total_spend
+  INTO customer_profile
+  FROM customer_profiles c
+  JOIN transactions t ON c.customer_id = t.customer_id
+  GROUP BY c.customer_id, c.segment, c.income_band, c.goals, c.risk_tolerance;
+
+  SELECT
+    product_id,
+    name,
+    annual_fee_usd,
+    rewards_focus,
+    intro_offer,
+    eligibility,
+    caveat
+  INTO card_catalog
+  FROM credit_card_products;
+
+sinks:
+  - name: customer_profile
+    config: !Dummy
+      table_name: customer_profile
+  - name: card_catalog
+    config: !Dummy
+      table_name: card_catalog
+
+# Optional ClickHouse path (uncomment + docker compose up):
+# sinks:
+#   - name: customer_profile_ch
+#     config: !Clickhouse
+#       host: localhost
+#       port: 9000
+#       user: default
+#       password: ""
+#       database: default
+#       options: []
+#       source_table_name: customer_profile
+#       sink_table_name: customer_profile
+#       create_table_options:
+#         engine: MergeTree
+#         order_by: [customer_id]
+#         primary_keys: [customer_id]
+#   - name: card_catalog_ch
+#     config: !Clickhouse
+#       host: localhost
+#       port: 9000
+#       user: default
+#       password: ""
+#       database: default
+#       options: []
+#       source_table_name: card_catalog
+#       sink_table_name: card_catalog
+#       create_table_options:
+#         engine: MergeTree
+#         order_by: [product_id]
+#         primary_keys: [product_id]

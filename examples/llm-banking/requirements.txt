@@ -1,0 +1,8 @@
+pyyaml>=6.0
+
+# Optional. Sample runs without these (local hash vector index).
+# langchain-core>=0.2,<0.4
+# langchain-community>=0.2,<0.4
+# langchain-openai>=0.1,<0.3
+# chromadb>=0.4,<0.6
+# clickhouse-connect>=0.7,<0.9
