@@ -84,3 +84,12 @@ fn test_not_in_list() {
     );
     assert_eq!(f, Field::Boolean(false));
 }
+
+#[test]
+fn test_in_list_uses_sql_comparison_coercion() {
+    let f = run_fct("SELECT 42 IN (42.0)", Schema::default(), vec![]);
+    assert_eq!(f, Field::Boolean(true));
+
+    let f = run_fct("SELECT 42 NOT IN (42.0)", Schema::default(), vec![]);
+    assert_eq!(f, Field::Boolean(false));
+}

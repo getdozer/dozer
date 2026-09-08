@@ -1,6 +1,7 @@
 use dozer_types::types::Record;
 use dozer_types::types::{Field, Schema};
 
+use crate::comparison::evaluate_eq;
 use crate::error::Error;
 use crate::execution::Expression;
 
@@ -15,7 +16,20 @@ pub(crate) fn evaluate_in_list(
     let mut result = false;
     for item in list {
         let item = item.evaluate(record, schema)?;
-        if field == item {
+
+        // Keep the existing NULL behavior while matching normal SQL equality
+        // semantics for compatible non-null types (for example Int = Float).
+        if matches!(&field, Field::Null) || matches!(&item, Field::Null) {
+            if field == item {
+                result = true;
+                break;
+            }
+            continue;
+        }
+
+        let mut left = Expression::Literal(field.clone());
+        let mut right = Expression::Literal(item);
+        if evaluate_eq(schema, &mut left, &mut right, record)? == Field::Boolean(true) {
             result = true;
             break;
         }
