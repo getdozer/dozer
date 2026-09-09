@@ -2084,8 +2084,41 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Wasm"
+          ],
+          "properties": {
+            "Wasm": {
+              "$ref": "#/definitions/WasmConfig"
+            }
+          },
+          "additionalProperties": false
         }
       ]
+    },
+    "WasmConfig": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "function": {
+          "description": "Exported function name. Defaults to the configured SQL UDF name.",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Path to a WebAssembly module, relative to the process working directory.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     },
     "WebhookConfig": {
       "examples": [

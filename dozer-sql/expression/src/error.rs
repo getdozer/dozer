@@ -105,6 +105,13 @@ pub enum Error {
     #[error("Javascript is not enabled")]
     JavaScriptNotEnabled,
 
+    #[error("WASM UDF support is not enabled; build with --features wasm")]
+    WasmNotEnabled,
+
+    #[cfg(feature = "wasm")]
+    #[error("WASM UDF error: {0}")]
+    Wasm(String),
+
     #[cfg(feature = "javascript")]
     #[error("JavaScript UDF error: {0}")]
     JavaScript(#[from] crate::javascript::Error),

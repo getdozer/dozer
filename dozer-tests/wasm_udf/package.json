@@ -1,0 +1,11 @@
+{
+  "name": "dozer-wasm-udf-example",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "asc assembly/index.ts --outFile build/math.wasm --textFile build/math.wat --runtime stub --optimize"
+  },
+  "devDependencies": {
+    "assemblyscript": "0.27.31"
+  }
+}
