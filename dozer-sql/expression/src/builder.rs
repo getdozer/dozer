@@ -573,6 +573,35 @@ impl ExpressionBuilder {
                         Err(Error::JavaScriptNotEnabled)
                     }
                 }
+                UdfType::Wasm(config) => {
+                    #[cfg(feature = "wasm")]
+                    {
+                        let mut args = Vec::with_capacity(sql_function.args.len());
+                        for argument in &sql_function.args {
+                            args.push(
+                                self.parse_sql_function_arg(
+                                    parse_aggregations,
+                                    argument,
+                                    schema,
+                                    udfs,
+                                )
+                                .await?,
+                            );
+                        }
+                        let udf = crate::wasm::Udf::new(function_name, config, args)?;
+                        // Selection factories do not request expression types separately.
+                        // Aggregate projections must wait for the post-aggregation schema.
+                        if !parse_aggregations {
+                            udf.get_type(schema)?;
+                        }
+                        Ok(Expression::WasmUdf(Box::new(udf)))
+                    }
+                    #[cfg(not(feature = "wasm"))]
+                    {
+                        let _ = config;
+                        Err(Error::WasmNotEnabled)
+                    }
+                }
             };
         }
 

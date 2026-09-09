@@ -16,6 +16,7 @@ pub struct UdfConfig {
 pub enum UdfType {
     Onnx(OnnxConfig),
     JavaScript(JavaScriptConfig),
+    Wasm(WasmConfig),
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
@@ -30,4 +31,14 @@ pub struct OnnxConfig {
 pub struct JavaScriptConfig {
     /// path to the module file
     pub module: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WasmConfig {
+    /// Path to a WebAssembly module, relative to the process working directory.
+    pub path: String,
+    /// Exported function name. Defaults to the configured SQL UDF name.
+    #[serde(default)]
+    pub function: Option<String>,
 }

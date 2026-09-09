@@ -1,0 +1,18 @@
+version: 1
+app_name: wasm_udf_example
+
+udfs:
+  - name: increment
+    config: !Wasm
+      path: dozer-tests/wasm_udf/build/math.wasm
+      function: addOne
+  - name: add
+    config: !Wasm
+      path: dozer-tests/wasm_udf/build/math.wasm
+  - name: nonnegative
+    config: !Wasm
+      path: dozer-tests/wasm_udf/build/math.wasm
+
+sql: |
+  SELECT increment(value), add(amount, 0.5), nonnegative(value)
+  FROM input;
