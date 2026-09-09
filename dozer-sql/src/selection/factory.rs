@@ -20,6 +20,7 @@ pub struct SelectionProcessorFactory {
     id: String,
     udfs: Vec<UdfConfig>,
     runtime: Arc<Runtime>,
+    internal_fields: usize,
 }
 
 impl SelectionProcessorFactory {
@@ -35,7 +36,14 @@ impl SelectionProcessorFactory {
             id,
             udfs: udf_config,
             runtime,
+            internal_fields: 0,
         }
+    }
+
+    /// Remove the trailing mark-join fields after evaluating WHERE.
+    pub(crate) fn with_internal_fields(mut self, count: usize) -> Self {
+        self.internal_fields = count;
+        self
     }
 }
 
@@ -63,7 +71,15 @@ impl ProcessorFactory for SelectionProcessorFactory {
         let schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
-        Ok(schema.clone())
+        let mut output = schema.clone();
+        let width = output
+            .fields
+            .len()
+            .checked_sub(self.internal_fields)
+            .ok_or_else(|| PipelineError::InvalidQuery("Invalid internal WHERE fields".into()))?;
+        output.fields.truncate(width);
+        output.primary_index.retain(|index| *index < width);
+        Ok(output)
     }
 
     async fn build(
@@ -80,10 +96,10 @@ impl ProcessorFactory for SelectionProcessorFactory {
             .build(false, &self.statement, schema, &self.udfs)
             .await
         {
-            Ok(expression) => Ok(Box::new(SelectionProcessor::new(
-                schema.clone(),
-                expression,
-            )?)),
+            Ok(expression) => Ok(Box::new(
+                SelectionProcessor::new(schema.clone(), expression)?
+                    .with_internal_fields(self.internal_fields),
+            )),
             Err(e) => Err(e.into()),
         }
     }
