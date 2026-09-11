@@ -1,0 +1,25 @@
+transaction_id,customer_id,merchant_name,merchant_category,amount_usd,txn_date
+TXN_101,CUST_001,Air France,travel,840.50,2026-08-10
+TXN_102,CUST_001,Hyatt Regency,travel,420.00,2026-08-14
+TXN_103,CUST_001,Uber Eats,dining,38.50,2026-08-15
+TXN_104,CUST_001,Delta Airlines,travel,610.20,2026-08-22
+TXN_105,CUST_001,Blue Bottle Coffee,dining,12.75,2026-08-25
+TXN_106,CUST_001,Boulangerie Bistro,dining,95.00,2026-08-28
+TXN_201,CUST_002,Campus Bookstore,education,145.00,2026-08-12
+TXN_202,CUST_002,Local Grocery Mart,groceries,52.30,2026-08-18
+TXN_203,CUST_002,Subway,dining,11.50,2026-08-22
+TXN_204,CUST_002,Metro Transit Pass,transit,45.00,2026-08-28
+TXN_301,CUST_003,Whole Foods Market,groceries,265.40,2026-08-05
+TXN_302,CUST_003,Costco Wholesale,groceries,412.80,2026-08-12
+TXN_303,CUST_003,Target Superstore,groceries,189.10,2026-08-19
+TXN_304,CUST_003,Shell Gas Station,gas,72.00,2026-08-20
+TXN_305,CUST_003,Olive Garden Family Dinner,dining,145.60,2026-08-26
+TXN_401,CUST_004,DoorDash,dining,48.20,2026-08-04
+TXN_402,CUST_004,Chipotle,dining,22.50,2026-08-09
+TXN_403,CUST_004,Best Buy Electronics,technology,350.00,2026-08-15
+TXN_404,CUST_004,Sushi Omakase,dining,185.00,2026-08-21
+TXN_405,CUST_004,AWS Cloud Services,technology,120.00,2026-08-28
+TXN_501,CUST_005,Four Seasons Resort,travel,2150.00,2026-08-02
+TXN_502,CUST_005,Emirates First Class,travel,5400.00,2026-08-10
+TXN_503,CUST_005,Le Bernardin,dining,620.00,2026-08-18
+TXN_504,CUST_005,Saks Fifth Avenue,retail,1450.00,2026-08-24

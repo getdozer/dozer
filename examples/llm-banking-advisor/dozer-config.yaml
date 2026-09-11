@@ -1,0 +1,93 @@
+app_name: llm-banking-advisor
+version: 1
+
+connections:
+  - name: bank_data
+    config: !LocalStorage
+      details:
+        path: ./data
+      tables:
+        - name: customer_profiles
+          config: !CSV
+            path: customer_profiles
+            extension: .csv
+        - name: transactions
+          config: !CSV
+            path: transactions
+            extension: .csv
+        - name: credit_card_products
+          config: !CSV
+            path: credit_card_products
+            extension: .csv
+
+sources:
+  - name: customer_profiles
+    table_name: customer_profiles
+    connection: bank_data
+  - name: transactions
+    table_name: transactions
+    connection: bank_data
+  - name: credit_card_products
+    table_name: credit_card_products
+    connection: bank_data
+
+sql: |
+  SELECT
+    c.customer_id,
+    c.first_name,
+    c.last_name,
+    c.age,
+    c.credit_score,
+    c.income_band,
+    c.annual_income_usd,
+    c.segment,
+    c.primary_goals,
+    c.risk_tolerance,
+    SUM(t.amount_usd) AS total_spend_usd,
+    COUNT(t.transaction_id) AS transaction_count,
+    MAX(t.amount_usd) AS max_single_transaction_usd
+  INTO customer_profile
+  FROM customer_profiles c
+  JOIN transactions t ON c.customer_id = t.customer_id
+  GROUP BY
+    c.customer_id,
+    c.first_name,
+    c.last_name,
+    c.age,
+    c.credit_score,
+    c.income_band,
+    c.annual_income_usd,
+    c.segment,
+    c.primary_goals,
+    c.risk_tolerance;
+
+  SELECT
+    product_id,
+    name,
+    card_tier,
+    annual_fee_usd,
+    min_credit_score,
+    min_annual_income_usd,
+    rewards_focus,
+    intro_bonus,
+    apr_rate,
+    perks_summary,
+    target_segment
+  INTO card_catalog
+  FROM credit_card_products;
+
+sinks:
+  - name: customer_profile
+    config: !Dummy
+      table_name: customer_profile
+  - name: card_catalog
+    config: !Dummy
+      table_name: card_catalog
+
+api:
+  rest:
+    port: 8080
+    cors: true
+  grpc:
+    port: 50051
+    cors: true
