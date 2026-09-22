@@ -1,0 +1,4 @@
+# Node artifacts
+node_modules/
+dist/
+.env
