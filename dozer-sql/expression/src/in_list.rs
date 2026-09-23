@@ -12,17 +12,25 @@ pub(crate) fn evaluate_in_list(
     record: &Record,
 ) -> Result<Field, Error> {
     let field = expr.evaluate(record, schema)?;
-    let mut result = false;
+    if field == Field::Null {
+        return Ok(Field::Null);
+    }
+
+    let mut contains_null = false;
     for item in list {
         let item = item.evaluate(record, schema)?;
+        if item == Field::Null {
+            contains_null = true;
+            continue;
+        }
         if field == item {
-            result = true;
-            break;
+            return Ok(Field::Boolean(!negated));
         }
     }
-    // Negate the result if the IN list was negated.
-    if negated {
-        result = !result;
+
+    if contains_null {
+        Ok(Field::Null)
+    } else {
+        Ok(Field::Boolean(negated))
     }
-    Ok(Field::Boolean(result))
 }

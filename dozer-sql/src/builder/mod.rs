@@ -2,11 +2,14 @@ use crate::aggregation::factory::AggregationProcessorFactory;
 use crate::builder::PipelineError::InvalidQuery;
 use crate::errors::PipelineError;
 use crate::selection::factory::SelectionProcessorFactory;
+use crate::selection::in_subquery::{
+    InSubqueryProcessorFactory, IN_SUBQUERY_LEFT_PORT, IN_SUBQUERY_RIGHT_PORT,
+};
 use dozer_core::app::AppPipeline;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql_expression::builder::{ExpressionBuilder, NameOrAlias};
-use dozer_sql_expression::sqlparser::ast::{SetOperator, SetQuantifier, TableFactor};
+use dozer_sql_expression::sqlparser::ast::{Expr, SetOperator, SetQuantifier, TableFactor};
 use dozer_types::models::udf_config::UdfConfig;
 
 use dozer_sql_expression::sqlparser::{
@@ -294,21 +297,64 @@ fn select_to_pipeline(
 
     // Where clause
     if let Some(selection) = select.selection {
-        let selection = SelectionProcessorFactory::new(
-            gen_selection_name.clone(),
-            selection,
-            query_ctx.udfs.clone(),
-            query_ctx.runtime.clone(),
-        );
-
-        pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
-
-        pipeline.connect_nodes(
-            gen_product_name,
-            product_output_port,
-            gen_selection_name.clone(),
-            DEFAULT_PORT_HANDLE,
-        );
+        if let Expr::InSubquery {
+            expr,
+            subquery,
+            negated,
+        } = selection
+        {
+            let subquery_name = format!("in_subquery--{}", query_ctx.get_next_processor_id());
+            query_to_pipeline(
+                TableInfo {
+                    name: NameOrAlias(subquery_name.clone(), None),
+                    override_name: None,
+                },
+                *subquery,
+                pipeline,
+                query_ctx,
+                pipeline_idx,
+                false,
+            )?;
+            let subquery_output = query_ctx
+                .pipeline_map
+                .get(&(pipeline_idx, subquery_name))
+                .cloned()
+                .ok_or_else(|| InvalidQuery("IN subquery did not produce output".to_string()))?;
+            let selection = InSubqueryProcessorFactory::new(
+                gen_selection_name.clone(),
+                *expr,
+                negated,
+                query_ctx.udfs.clone(),
+                query_ctx.runtime.clone(),
+            );
+            pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
+            pipeline.connect_nodes(
+                gen_product_name,
+                product_output_port,
+                gen_selection_name.clone(),
+                IN_SUBQUERY_LEFT_PORT,
+            );
+            pipeline.connect_nodes(
+                subquery_output.node,
+                subquery_output.port,
+                gen_selection_name.clone(),
+                IN_SUBQUERY_RIGHT_PORT,
+            );
+        } else {
+            let selection = SelectionProcessorFactory::new(
+                gen_selection_name.clone(),
+                selection,
+                query_ctx.udfs.clone(),
+                query_ctx.runtime.clone(),
+            );
+            pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
+            pipeline.connect_nodes(
+                gen_product_name,
+                product_output_port,
+                gen_selection_name.clone(),
+                DEFAULT_PORT_HANDLE,
+            );
+        }
 
         pipeline.connect_nodes(
             gen_selection_name,
