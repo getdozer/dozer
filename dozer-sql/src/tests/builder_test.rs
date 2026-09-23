@@ -280,3 +280,21 @@ fn test_pipeline_builder() {
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);
 }
+
+#[test]
+fn test_in_subquery_pipeline_builder() {
+    let mut pipeline = AppPipeline::new_with_default_flags();
+    let context = statement_to_pipeline(
+        "SELECT CustomerID FROM users \
+         WHERE CustomerID IN (SELECT CustomerID FROM allowed_users)",
+        &mut pipeline,
+        Some("results".to_string()),
+        vec![],
+        create_test_runtime(),
+    )
+    .unwrap();
+
+    assert!(context.output_tables_map.contains_key("results"));
+    assert!(context.used_sources.contains(&"users".to_string()));
+    assert!(context.used_sources.contains(&"allowed_users".to_string()));
+}
