@@ -544,7 +544,7 @@ fn get_binary_operator_type(
             match (left_field_type.return_type, right_field_type.return_type) {
                 (FieldType::Boolean, FieldType::Boolean) => Ok(ExpressionType::new(
                     FieldType::Boolean,
-                    false,
+                    left_field_type.nullable || right_field_type.nullable,
                     SourceDefinition::Dynamic,
                     false,
                 )),
@@ -558,7 +558,7 @@ fn get_binary_operator_type(
                     | FieldType::Text,
                 ) => Ok(ExpressionType::new(
                     FieldType::Boolean,
-                    false,
+                    left_field_type.nullable || right_field_type.nullable,
                     SourceDefinition::Dynamic,
                     false,
                 )),
@@ -572,7 +572,7 @@ fn get_binary_operator_type(
                     FieldType::Boolean,
                 ) => Ok(ExpressionType::new(
                     FieldType::Boolean,
-                    false,
+                    left_field_type.nullable || right_field_type.nullable,
                     SourceDefinition::Dynamic,
                     false,
                 )),

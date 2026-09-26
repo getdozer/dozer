@@ -13,6 +13,7 @@ use dozer_types::{models::udf_config::UdfConfig, tonic::async_trait};
 use tokio::runtime::Runtime;
 
 use super::processor::SelectionProcessor;
+use super::replay::ReplayRequirement;
 
 #[derive(Debug)]
 pub struct SelectionProcessorFactory {
@@ -20,6 +21,7 @@ pub struct SelectionProcessorFactory {
     id: String,
     udfs: Vec<UdfConfig>,
     runtime: Arc<Runtime>,
+    replay: ReplayRequirement,
 }
 
 impl SelectionProcessorFactory {
@@ -35,7 +37,12 @@ impl SelectionProcessorFactory {
             id,
             udfs: udf_config,
             runtime,
+            replay: ReplayRequirement::default(),
         }
+    }
+
+    pub(crate) fn replay_requirement(&self) -> ReplayRequirement {
+        self.replay.clone()
     }
 }
 
@@ -80,10 +87,13 @@ impl ProcessorFactory for SelectionProcessorFactory {
             .build(false, &self.statement, schema, &self.udfs)
             .await
         {
-            Ok(expression) => Ok(Box::new(SelectionProcessor::new(
-                schema.clone(),
-                expression,
-            )?)),
+            Ok(expression) => {
+                self.replay.validate(&expression)?;
+                Ok(Box::new(SelectionProcessor::new(
+                    schema.clone(),
+                    expression,
+                )?))
+            }
             Err(e) => Err(e.into()),
         }
     }

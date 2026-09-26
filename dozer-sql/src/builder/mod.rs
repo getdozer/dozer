@@ -1,7 +1,9 @@
 use crate::aggregation::factory::AggregationProcessorFactory;
 use crate::builder::PipelineError::InvalidQuery;
 use crate::errors::PipelineError;
+use crate::projection::trim::TrimMembershipColumns;
 use crate::selection::factory::SelectionProcessorFactory;
+use crate::selection::replay::ReplayRequirement;
 use dozer_core::app::AppPipeline;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -37,6 +39,7 @@ pub struct OutputNodeInfo {
 pub struct QueryContext {
     // Internal tables map, used to store the tables that are created by the queries
     pipeline_map: HashMap<(usize, String), OutputNodeInfo>,
+    replay_requirements: HashMap<(usize, String), Vec<ReplayRequirement>>,
 
     // Output tables map that are marked with "INTO" used to store the tables, these can be exposed to sinks.
     pub output_tables_map: HashMap<String, OutputNodeInfo>,
@@ -66,6 +69,7 @@ impl QueryContext {
     pub fn new(udfs: Vec<UdfConfig>, runtime: Arc<Runtime>) -> Self {
         QueryContext {
             pipeline_map: Default::default(),
+            replay_requirements: Default::default(),
             output_tables_map: Default::default(),
             used_sources: Default::default(),
             processors_list: Default::default(),
@@ -129,6 +133,54 @@ fn query_to_pipeline(
     pipeline_idx: usize,
     is_top_select: bool,
 ) -> Result<(), PipelineError> {
+    // Each query owns a lexical WITH scope. Keep graph-wide processor IDs and
+    // shared replay requirements while exposing only this query's output.
+    let restriction = membership::validate_query_scope(&query, is_top_select).err();
+    let visible_tables = query_ctx.pipeline_map.clone();
+    let visible_requirements = query_ctx.replay_requirements.clone();
+    let output_key = (pipeline_idx, table_info.name.0.clone());
+    let result = query_body_to_pipeline(
+        table_info,
+        query,
+        pipeline,
+        query_ctx,
+        pipeline_idx,
+        is_top_select,
+    );
+    let output = query_ctx.pipeline_map.get(&output_key).cloned();
+    let requirements = query_ctx.replay_requirements.get(&output_key).cloned();
+    if let (Some(error), Some(requirement)) = (
+        restriction,
+        requirements
+            .as_ref()
+            .and_then(|requirements| requirements.last()),
+    ) {
+        // An outer CTE may have been planned before its membership consumer.
+        // Preserve unsupported syntax until that consumer requires replay.
+        requirement.reject_when_required(error.to_string());
+    }
+    query_ctx.pipeline_map = visible_tables;
+    query_ctx.replay_requirements = visible_requirements;
+    result?;
+    if let Some(output) = output {
+        query_ctx.pipeline_map.insert(output_key.clone(), output);
+    }
+    if let Some(requirements) = requirements {
+        query_ctx
+            .replay_requirements
+            .insert(output_key, requirements);
+    }
+    Ok(())
+}
+
+fn query_body_to_pipeline(
+    table_info: TableInfo,
+    query: Query,
+    pipeline: &mut AppPipeline,
+    query_ctx: &mut QueryContext,
+    pipeline_idx: usize,
+    is_top_select: bool,
+) -> Result<(), PipelineError> {
     // return error if there is unsupported syntax
     if !query.order_by.is_empty() {
         return Err(PipelineError::UnsupportedSqlError(
@@ -150,17 +202,15 @@ fn query_to_pipeline(
             ));
         }
 
+        let mut local_names = HashSet::new();
         for table in with.cte_tables {
             if table.from.is_some() {
                 return Err(PipelineError::UnsupportedSqlError(
                     UnsupportedSqlError::CteFromError,
                 ));
             }
-            let table_name = table.alias.name.to_string();
-            if query_ctx
-                .pipeline_map
-                .contains_key(&(pipeline_idx, table_name.clone()))
-            {
+            let table_name = ExpressionBuilder::normalize_ident(&table.alias.name);
+            if !local_names.insert(table_name.clone()) {
                 return Err(InvalidQuery(format!(
                     "WITH query name {table_name:?} specified more than once"
                 )));
@@ -179,7 +229,25 @@ fn query_to_pipeline(
         }
     };
 
-    match *query.body {
+    set_body_to_pipeline(
+        table_info,
+        *query.body,
+        pipeline,
+        query_ctx,
+        pipeline_idx,
+        is_top_select,
+    )
+}
+
+fn set_body_to_pipeline(
+    table_info: TableInfo,
+    body: SetExpr,
+    pipeline: &mut AppPipeline,
+    query_ctx: &mut QueryContext,
+    pipeline_idx: usize,
+    is_top_select: bool,
+) -> Result<(), PipelineError> {
+    match body {
         SetExpr::Select(select) => {
             select_to_pipeline(
                 table_info,
@@ -190,47 +258,40 @@ fn query_to_pipeline(
                 is_top_select,
             )?;
         }
-        SetExpr::Query(query) => {
-            let query_name = format!("subquery_{}", query_ctx.get_next_processor_id());
-            let mut ctx = QueryContext::new(query_ctx.udfs.clone(), query_ctx.runtime.clone());
-            query_to_pipeline(
-                TableInfo {
-                    name: NameOrAlias(query_name, None),
-                    override_name: None,
-                },
-                *query,
-                pipeline,
-                &mut ctx,
-                pipeline_idx,
-                false, //Inside a subquery, so not top select
-            )?
-        }
+        SetExpr::Query(query) => query_to_pipeline(
+            table_info,
+            *query,
+            pipeline,
+            query_ctx,
+            pipeline_idx,
+            is_top_select,
+        )?,
         SetExpr::SetOperation {
-            op,
+            op: SetOperator::Union,
             set_quantifier,
             left,
             right,
-        } => match op {
-            SetOperator::Union => {
-                set_to_pipeline(
-                    table_info,
-                    left,
-                    right,
-                    set_quantifier,
-                    pipeline,
-                    query_ctx,
-                    pipeline_idx,
-                    is_top_select,
-                )?;
-            }
-            _ => return Err(PipelineError::InvalidOperator(op.to_string())),
-        },
+        } => {
+            set_to_pipeline(
+                table_info,
+                left,
+                right,
+                set_quantifier,
+                pipeline,
+                query_ctx,
+                pipeline_idx,
+                is_top_select,
+            )?;
+        }
+        SetExpr::SetOperation { op, .. } => {
+            return Err(PipelineError::InvalidOperator(op.to_string()));
+        }
         _ => {
             return Err(PipelineError::UnsupportedSqlError(
                 UnsupportedSqlError::GenericError("Unsupported query body structure".to_string()),
             ))
         }
-    };
+    }
     Ok(())
 }
 
@@ -259,7 +320,14 @@ fn select_to_pipeline(
     let gen_selection_name = format!("select--{}", query_ctx.get_next_processor_id());
     let (gen_product_name, product_output_port) = output_node;
 
+    let mut replay_requirements = Vec::new();
     for (source_name, processor_name, processor_port) in input_nodes {
+        if let Some(requirements) = query_ctx
+            .replay_requirements
+            .get(&(pipeline_idx, source_name.clone()))
+        {
+            replay_requirements.extend(requirements.iter().cloned());
+        }
         if let Some(table_info) = query_ctx
             .pipeline_map
             .get(&(pipeline_idx, source_name.clone()))
@@ -290,28 +358,67 @@ fn select_to_pipeline(
         query_ctx.runtime.clone(),
     );
 
+    replay_requirements.push(aggregation.replay_requirement());
     pipeline.add_processor(Box::new(aggregation), gen_agg_name.clone());
 
     // Where clause
-    if let Some(selection) = select.selection {
+    if let Some(mut selection) = select.selection {
+        let (input, membership_columns) = membership::plan(
+            &mut selection,
+            OutputNodeInfo {
+                node: gen_product_name,
+                port: product_output_port,
+            },
+            pipeline,
+            query_ctx,
+            pipeline_idx,
+        )?;
         let selection = SelectionProcessorFactory::new(
             gen_selection_name.clone(),
             selection,
             query_ctx.udfs.clone(),
             query_ctx.runtime.clone(),
         );
+        replay_requirements.push(selection.replay_requirement());
+        if !membership_columns.is_empty() {
+            for requirement in &replay_requirements {
+                requirement.require();
+            }
+        }
 
         pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
 
         pipeline.connect_nodes(
-            gen_product_name,
-            product_output_port,
+            input.node,
+            input.port,
             gen_selection_name.clone(),
             DEFAULT_PORT_HANDLE,
         );
 
+        let selection_output = if membership_columns.is_empty() {
+            gen_selection_name
+        } else {
+            let name = format!(
+                "membership_projection--{}",
+                query_ctx.get_next_processor_id()
+            );
+            pipeline.add_processor(
+                Box::new(TrimMembershipColumns {
+                    id: name.clone(),
+                    columns: membership_columns,
+                }),
+                name.clone(),
+            );
+            pipeline.connect_nodes(
+                gen_selection_name,
+                DEFAULT_PORT_HANDLE,
+                name.clone(),
+                DEFAULT_PORT_HANDLE,
+            );
+            name
+        };
         pipeline.connect_nodes(
-            gen_selection_name,
+            selection_output,
             DEFAULT_PORT_HANDLE,
             gen_agg_name.clone(),
             DEFAULT_PORT_HANDLE,
@@ -325,6 +432,10 @@ fn select_to_pipeline(
         );
     }
 
+    query_ctx.replay_requirements.insert(
+        (pipeline_idx, table_info.name.0.clone()),
+        replay_requirements,
+    );
     query_ctx.pipeline_map.insert(
         (pipeline_idx, table_info.name.0.to_string()),
         OutputNodeInfo {
@@ -382,70 +493,36 @@ fn set_to_pipeline(
         override_name: None,
     };
 
-    let _left_pipeline_name = match *left_select {
-        SetExpr::Select(select) => select_to_pipeline(
-            left_table_info,
-            *select,
-            pipeline,
-            query_ctx,
-            pipeline_idx,
-            is_top_select,
-        )?,
-        SetExpr::SetOperation {
-            op: _,
-            set_quantifier,
-            left,
-            right,
-        } => set_to_pipeline(
-            left_table_info,
-            left,
-            right,
-            set_quantifier,
-            pipeline,
-            query_ctx,
-            pipeline_idx,
-            is_top_select,
-        )?,
-        _ => {
-            return Err(PipelineError::InvalidQuery(
-                "Invalid UNION left Query".to_string(),
-            ))
-        }
-    };
-
-    let _right_pipeline_name = match *right_select {
-        SetExpr::Select(select) => select_to_pipeline(
-            right_table_info,
-            *select,
-            pipeline,
-            query_ctx,
-            pipeline_idx,
-            is_top_select,
-        )?,
-        SetExpr::SetOperation {
-            op: _,
-            set_quantifier,
-            left,
-            right,
-        } => set_to_pipeline(
-            right_table_info,
-            left,
-            right,
-            set_quantifier,
-            pipeline,
-            query_ctx,
-            pipeline_idx,
-            is_top_select,
-        )?,
-        _ => {
-            return Err(PipelineError::InvalidQuery(
-                "Invalid UNION right Query".to_string(),
-            ))
-        }
-    };
+    // UNION operands are internal relations; only the complete set expression
+    // owns the output name. Parenthesized operands retain their own WITH scope.
+    set_body_to_pipeline(
+        left_table_info,
+        *left_select,
+        pipeline,
+        query_ctx,
+        pipeline_idx,
+        false,
+    )?;
+    set_body_to_pipeline(
+        right_table_info,
+        *right_select,
+        pipeline,
+        query_ctx,
+        pipeline_idx,
+        false,
+    )?;
 
     let mut gen_set_name = format!("set_{}", query_ctx.get_next_processor_id());
 
+    let mut replay_requirements = Vec::new();
+    for name in [&gen_left_set_name, &gen_right_set_name] {
+        if let Some(requirements) = query_ctx
+            .replay_requirements
+            .get(&(pipeline_idx, name.clone()))
+        {
+            replay_requirements.extend(requirements.iter().cloned());
+        }
+    }
     let left_pipeline_output_node = query_ctx
         .pipeline_map
         .get(&(pipeline_idx, gen_left_set_name))
@@ -460,15 +537,26 @@ fn set_to_pipeline(
         gen_set_name = table_info.override_name.to_owned().unwrap();
     }
 
-    let set_proc_fac = SetProcessorFactory::new(
-        gen_set_name.clone(),
-        set_quantifier,
-        pipeline
-            .flags()
-            .enable_probabilistic_optimizations
-            .in_sets
-            .unwrap_or(false),
-    );
+    let probabilistic = pipeline
+        .flags()
+        .enable_probabilistic_optimizations
+        .in_sets
+        .unwrap_or(false);
+    if probabilistic
+        && matches!(
+            set_quantifier,
+            SetQuantifier::None | SetQuantifier::Distinct
+        )
+    {
+        // Approximate counting cannot retain the original row representation
+        // for a later retraction. Membership needs exact, replayable inputs.
+        let requirement = replay_requirements
+            .last()
+            .ok_or_else(|| InvalidQuery("UNION input has no replay requirement".into()))?;
+        requirement.reject_when_required("IN subqueries require exact UNION counting".into());
+    }
+    let set_proc_fac =
+        SetProcessorFactory::new(gen_set_name.clone(), set_quantifier, probabilistic);
 
     pipeline.add_processor(Box::new(set_proc_fac), gen_set_name.clone());
 
@@ -486,10 +574,10 @@ fn set_to_pipeline(
         1,
     );
 
-    for (_, table_name) in query_ctx.pipeline_map.keys() {
-        query_ctx.output_tables_map.remove_entry(table_name);
-    }
-
+    query_ctx.replay_requirements.insert(
+        (pipeline_idx, table_info.name.0.clone()),
+        replay_requirements,
+    );
     query_ctx.pipeline_map.insert(
         (pipeline_idx, table_info.name.0.to_string()),
         OutputNodeInfo {
@@ -498,6 +586,21 @@ fn set_to_pipeline(
         },
     );
 
+    if is_top_select {
+        let name = table_info
+            .override_name
+            .ok_or(PipelineError::MissingIntoClause)?;
+        if query_ctx.output_tables_map.contains_key(&name) {
+            return Err(PipelineError::DuplicateIntoClause(name));
+        }
+        query_ctx.output_tables_map.insert(
+            name,
+            OutputNodeInfo {
+                node: gen_set_name.clone(),
+                port: DEFAULT_PORT_HANDLE,
+            },
+        );
+    }
     Ok(gen_set_name)
 }
 
@@ -561,6 +664,7 @@ struct ConnectionInfo {
 mod common;
 mod from;
 mod join;
+mod membership;
 mod table_operator;
 
 pub use common::string_from_sql_object_name;

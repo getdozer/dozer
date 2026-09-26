@@ -36,16 +36,29 @@ pub fn insert_join_to_pipeline(
     let mut left_name_or_alias = Some(get_name_or_alias(&left_table)?);
     let mut left_join_source =
         insert_join_source_to_pipeline(left_table, pipeline, pipeline_idx, query_context)?;
+    bind_relation_name(
+        &mut left_name_or_alias,
+        &left_join_source,
+        query_context,
+        pipeline_idx,
+    );
 
     for join in from.joins {
         let right_table = join.relation;
-        let right_name_or_alias = Some(get_name_or_alias(&right_table)?);
+        let mut right_name_or_alias = Some(get_name_or_alias(&right_table)?);
         let right_join_source = insert_join_source_to_pipeline(
             right_table.clone(),
             pipeline,
             pipeline_idx,
             query_context,
         )?;
+
+        bind_relation_name(
+            &mut right_name_or_alias,
+            &right_join_source,
+            query_context,
+            pipeline_idx,
+        );
 
         let join_processor_name = format!("join_{}", query_context.get_next_processor_id());
         if !query_context
@@ -100,6 +113,23 @@ pub fn insert_join_to_pipeline(
             "No JOIN operator found".to_string(),
         )),
         JoinSource::Join(connection_info) => Ok(connection_info),
+    }
+}
+
+fn bind_relation_name(
+    name: &mut Option<dozer_sql_expression::builder::NameOrAlias>,
+    source: &JoinSource,
+    context: &QueryContext,
+    pipeline_idx: usize,
+) {
+    if let (Some(name), JoinSource::Table(source)) = (name, source) {
+        if name.1.is_none()
+            && context
+                .pipeline_map
+                .contains_key(&(pipeline_idx, source.clone()))
+        {
+            name.1 = Some(name.0.clone());
+        }
     }
 }
 
