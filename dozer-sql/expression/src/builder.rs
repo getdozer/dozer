@@ -531,9 +531,41 @@ impl ExpressionBuilder {
         }
 
         // config check for udfs
-        let udf_type = udfs.iter().find(|udf| udf.name == function_name);
+        let udf_type = udfs.iter().find(|udf| {
+            udf.name == function_name
+                || (matches!(udf.config, UdfType::Wasm(_))
+                    && udf.name.eq_ignore_ascii_case(&function_name))
+        });
         if let Some(udf_type) = udf_type {
             return match &udf_type.config {
+                UdfType::Wasm(config) => {
+                    if sql_function.over.is_some()
+                        || sql_function.distinct
+                        || sql_function.special
+                        || !sql_function.order_by.is_empty()
+                        || sql_function.return_type.is_some()
+                    {
+                        return Err(Error::Wasm(format!(
+                            "{function_name}: expected a scalar call without SQL function modifiers"
+                        )));
+                    }
+                    let mut args = Vec::new();
+                    for argument in &sql_function.args {
+                        if !matches!(argument, FunctionArg::Unnamed(FunctionArgExpr::Expr(_))) {
+                            return Err(Error::UnsupportedFunctionArg(argument.clone()));
+                        }
+                        args.push(
+                            self.parse_sql_function_arg(false, argument, schema, udfs)
+                                .await?,
+                        );
+                    }
+                    Ok(Expression::WasmUdf(crate::wasm::Udf::new(
+                        udf_type.name.clone(),
+                        config,
+                        args,
+                        schema,
+                    )?))
+                }
                 UdfType::Onnx(config) => {
                     #[cfg(feature = "onnx")]
                     {

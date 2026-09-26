@@ -16,6 +16,7 @@ mod logical;
 mod mathematical;
 pub mod operator;
 pub mod scalar;
+pub mod wasm;
 
 #[cfg(feature = "javascript")]
 mod javascript;
