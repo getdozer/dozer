@@ -32,7 +32,7 @@ impl SetOperation {
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         match (self.op, self.quantifier) {
             (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record)]),
-            (SetOperator::Union, SetQuantifier::None) => {
+            (SetOperator::Union, SetQuantifier::None | SetQuantifier::Distinct) => {
                 self.execute_union(action, record, record_map)
             }
             _ => Err(PipelineError::InvalidOperandType(self.op.to_string())),
@@ -71,9 +71,14 @@ impl SetOperation {
         record: Record,
         record_map: &mut CountingRecordMapEnum,
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
-        let _count = self.update_map(record.clone(), true, record_map);
+        // Equality can ignore decimal scale or timestamp offset. Retract the
+        // representation that was inserted, so later expressions see the same row.
+        let representative = record_map
+            .representative(&record)
+            .unwrap_or_else(|| record.clone());
+        let _count = self.update_map(record, true, record_map);
         if _count == 0 {
-            Ok(vec![(action, record)])
+            Ok(vec![(action, representative)])
         } else {
             Ok(vec![])
         }
@@ -92,5 +97,46 @@ impl SetOperation {
         }
 
         record_map.estimate_count(&record)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::product::set::record_map::AccurateCountingRecordMap;
+    use dozer_types::{rust_decimal::Decimal, types::Field};
+
+    #[test]
+    fn union_retracts_the_first_equal_decimal_representation() {
+        let first = Record::new(vec![Field::Decimal(Decimal::new(10, 1))]);
+        let second = Record::new(vec![Field::Decimal(Decimal::new(100, 2))]);
+        assert_eq!(first, second);
+        let encoded =
+            |row: &Record| bincode::encode_to_vec(row, bincode::config::standard()).unwrap();
+        assert_ne!(encoded(&first), encoded(&second));
+        for quantifier in [SetQuantifier::None, SetQuantifier::Distinct] {
+            let op = SetOperation {
+                op: SetOperator::Union,
+                quantifier,
+            };
+            let mut map: CountingRecordMapEnum = AccurateCountingRecordMap::new().unwrap().into();
+            let inserted = op
+                .execute(SetAction::Insert, first.clone(), &mut map)
+                .unwrap();
+            assert!(op
+                .execute(SetAction::Insert, second.clone(), &mut map)
+                .unwrap()
+                .is_empty());
+            assert!(op
+                .execute(SetAction::Delete, first.clone(), &mut map)
+                .unwrap()
+                .is_empty());
+            let deleted = op
+                .execute(SetAction::Delete, second.clone(), &mut map)
+                .unwrap();
+            assert_eq!(deleted.len(), 1);
+            assert_eq!(deleted[0].0, SetAction::Delete);
+            assert_eq!(encoded(&deleted[0].1), encoded(&inserted[0].1));
+        }
     }
 }

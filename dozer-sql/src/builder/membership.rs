@@ -2,7 +2,8 @@ use dozer_core::{app::AppPipeline, DEFAULT_PORT_HANDLE};
 use dozer_sql_expression::{
     builder::NameOrAlias,
     sqlparser::ast::{
-        Expr, FunctionArg, FunctionArgExpr, Ident, Query, SelectItem, SetExpr, TableFactor,
+        Expr, FunctionArg, FunctionArgExpr, Ident, Query, SelectItem, SetExpr, SetOperator,
+        TableFactor,
     },
 };
 
@@ -167,24 +168,50 @@ impl MembershipPlanner<'_> {
 }
 
 fn validate_query(query: &Query) -> Result<(), PipelineError> {
+    validate_query_scope(query, false)
+}
+
+pub(super) fn validate_query_scope(query: &Query, allow_into: bool) -> Result<(), PipelineError> {
     if query.fetch.is_some() || !query.locks.is_empty() {
         return Err(PipelineError::InvalidQuery(
             "IN subqueries do not support FETCH or locking clauses".into(),
         ));
     }
-    let SetExpr::Select(select) = query.body.as_ref() else {
-        return Err(PipelineError::InvalidQuery(
-            "IN subqueries currently require a SELECT body; set operations are unsupported".into(),
-        ));
+    if let Some(with) = &query.with {
+        for cte in &with.cte_tables {
+            if !cte.alias.columns.is_empty() {
+                return Err(PipelineError::InvalidQuery(
+                    "IN subqueries do not support CTE column aliases".into(),
+                ));
+            }
+            validate_query(&cte.query)?;
+        }
+    }
+    validate_body(&query.body, allow_into)
+}
+
+fn validate_body(body: &SetExpr, allow_into: bool) -> Result<(), PipelineError> {
+    let select = match body {
+        SetExpr::Select(select) => select,
+        SetExpr::Query(query) => return validate_query_scope(query, allow_into),
+        SetExpr::SetOperation {
+            op: SetOperator::Union,
+            left,
+            right,
+            ..
+        } => {
+            validate_body(left, false)?;
+            return validate_body(right, false);
+        }
+        _ => {
+            return Err(PipelineError::InvalidQuery(
+                "IN subqueries require a SELECT or UNION body".into(),
+            ))
+        }
     };
-    if query.with.is_some()
-        || select.into.is_some()
-        || select.distinct.is_some()
-        || !select.group_by.is_empty()
-        || select.having.is_some()
-    {
+    if (!allow_into && select.into.is_some()) || select.distinct.is_some() {
         return Err(PipelineError::InvalidQuery(
-            "IN subqueries do not yet support WITH, INTO, DISTINCT, GROUP BY or HAVING".into(),
+            "IN subqueries do not support INTO or SELECT DISTINCT".into(),
         ));
     }
     if select.top.is_some()
@@ -199,44 +226,146 @@ fn validate_query(query: &Query) -> Result<(), PipelineError> {
             "IN subquery contains unsupported SELECT modifiers".into(),
         ));
     }
-    if select.from.len() != 1
-        || !select.from[0].joins.is_empty()
-        || !matches!(select.from[0].relation, TableFactor::Table { .. })
-    {
+    if select.from.len() != 1 {
         return Err(PipelineError::InvalidQuery(
-            "IN subqueries currently require one named input relation".into(),
+            "IN subqueries require one FROM relation, optionally with JOINs".into(),
         ));
     }
-    if let TableFactor::Table {
-        args,
-        with_hints,
-        alias,
-        ..
-    } = &select.from[0].relation
-    {
-        if args.is_some()
-            || !with_hints.is_empty()
-            || alias
-                .as_ref()
-                .is_some_and(|alias| !alias.columns.is_empty())
-        {
-            return Err(PipelineError::InvalidQuery(
-                "IN subqueries do not support table arguments, hints or column aliases".into(),
-            ));
-        }
+    validate_relation(&select.from[0].relation)?;
+    for join in &select.from[0].joins {
+        validate_relation(&join.relation)?;
     }
     for projection in &select.projection {
         match projection {
-            SelectItem::UnnamedExpr(Expr::Identifier(_) | Expr::CompoundIdentifier(_))
-            | SelectItem::ExprWithAlias { expr: Expr::Identifier(_) | Expr::CompoundIdentifier(_), .. }
-            => {}
+            SelectItem::UnnamedExpr(expression)
+            | SelectItem::ExprWithAlias {
+                expr: expression, ..
+            } => {
+                validate_expression(expression)?;
+            }
             SelectItem::Wildcard(options) | SelectItem::QualifiedWildcard(_, options)
-                if options.opt_exclude.is_none() && options.opt_except.is_none()
-                    && options.opt_rename.is_none() && options.opt_replace.is_none() => {}
-            _ => return Err(PipelineError::InvalidQuery(
-                "IN subqueries currently require a column projection; computed and aggregate projections are unsupported".into(),
-            )),
+                if options.opt_exclude.is_some()
+                    || options.opt_except.is_some()
+                    || options.opt_rename.is_some()
+                    || options.opt_replace.is_some() =>
+            {
+                return Err(PipelineError::InvalidQuery(
+                    "IN subqueries do not support wildcard modifiers".into(),
+                ));
+            }
+            _ => {}
         }
     }
+    for expression in select
+        .selection
+        .iter()
+        .chain(select.group_by.iter())
+        .chain(select.having.iter())
+    {
+        validate_expression(expression)?;
+    }
     Ok(())
+}
+
+fn validate_expression(expression: &Expr) -> Result<(), PipelineError> {
+    match expression {
+        Expr::InSubquery { expr, subquery, .. } => {
+            validate_expression(expr)?;
+            validate_query(subquery)?;
+        }
+        Expr::BinaryOp { left, right, .. } => {
+            validate_expression(left)?;
+            validate_expression(right)?;
+        }
+        Expr::Nested(expr)
+        | Expr::UnaryOp { expr, .. }
+        | Expr::IsNull(expr)
+        | Expr::IsNotNull(expr)
+        | Expr::Cast { expr, .. }
+        | Expr::Extract { expr, .. } => {
+            validate_expression(expr)?;
+        }
+        Expr::Interval(interval) => validate_expression(&interval.value)?,
+        Expr::InList { expr, list, .. } => {
+            validate_expression(expr)?;
+            for item in list {
+                validate_expression(item)?;
+            }
+        }
+        Expr::Like { expr, pattern, .. } => {
+            validate_expression(expr)?;
+            validate_expression(pattern)?;
+        }
+        Expr::Function(function) => {
+            if function.distinct || function.over.is_some() || !function.order_by.is_empty() {
+                return Err(PipelineError::InvalidQuery(
+                    "IN subqueries do not support DISTINCT, OVER or ORDER BY function modifiers"
+                        .into(),
+                ));
+            }
+            for argument in &function.args {
+                let (FunctionArg::Named { arg, .. } | FunctionArg::Unnamed(arg)) = argument;
+                if let FunctionArgExpr::Expr(expression) = arg {
+                    validate_expression(expression)?;
+                }
+            }
+        }
+        Expr::Case {
+            operand,
+            conditions,
+            results,
+            else_result,
+        } => {
+            for expression in operand.iter().chain(else_result.iter()) {
+                validate_expression(expression)?;
+            }
+            for expression in conditions.iter().chain(results.iter()) {
+                validate_expression(expression)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn validate_relation(relation: &TableFactor) -> Result<(), PipelineError> {
+    match relation {
+        TableFactor::Table {
+            args,
+            with_hints,
+            alias,
+            ..
+        } => {
+            if args.is_some()
+                || !with_hints.is_empty()
+                || alias
+                    .as_ref()
+                    .is_some_and(|alias| !alias.columns.is_empty())
+            {
+                return Err(PipelineError::InvalidQuery(
+                    "IN subqueries do not support table arguments, hints or column aliases".into(),
+                ));
+            }
+            Ok(())
+        }
+        TableFactor::Derived {
+            lateral,
+            subquery,
+            alias,
+        } => {
+            if *lateral
+                || alias
+                    .as_ref()
+                    .is_some_and(|alias| !alias.columns.is_empty())
+            {
+                return Err(PipelineError::InvalidQuery(
+                    "IN subqueries do not support lateral relations or column aliases".into(),
+                ));
+            }
+            validate_query(subquery)
+        }
+        _ => Err(PipelineError::InvalidQuery(
+            "IN subquery contains an unsupported input relation".into(),
+        )),
+    }
 }

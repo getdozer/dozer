@@ -579,13 +579,7 @@ fn negated_compounds_preserve_unknown_membership() {
 fn unsupported_subqueries_fail_during_pipeline_construction() {
     for subquery in [
         "SELECT value, value FROM inner_rows",
-        "SELECT COUNT(*) FROM inner_rows",
-        "SELECT value + 1 FROM inner_rows",
         "SELECT DISTINCT value FROM inner_rows",
-        "SELECT value FROM inner_rows GROUP BY value",
-        "SELECT value FROM inner_rows UNION ALL SELECT value FROM inner_rows",
-        "WITH candidate AS (SELECT value FROM inner_rows) SELECT value FROM candidate",
-        "SELECT i.value FROM inner_rows i JOIN inner_rows j ON i.value = j.value",
     ] {
         let sql = format!("SELECT * FROM outer_rows WHERE value IN ({subquery})");
         let result = Pipeline::try_new(
@@ -600,6 +594,595 @@ fn unsupported_subqueries_fail_during_pipeline_construction() {
             "unsupported subquery was accepted: {subquery}"
         );
     }
+}
+
+#[test]
+fn inner_with_shadows_an_outer_cte_without_changing_sibling_membership() {
+    let mut pipeline = Pipeline::new(
+        "WITH candidates AS (SELECT value FROM other_rows) \
+         SELECT * FROM outer_rows WHERE \
+         value IN (WITH candidates AS (SELECT value FROM inner_rows) \
+                   SELECT candidates.value FROM candidates) \
+         AND value IN (SELECT candidates.value FROM candidates)",
+        vec![
+            ("outer_rows", table_schema("outer_rows", true)),
+            ("inner_rows", table_schema("inner_rows", false)),
+            ("other_rows", table_schema("other_rows", false)),
+        ],
+    );
+    let seven = outer(1, Field::Int(7));
+    let nine = outer(2, Field::Int(9));
+    pipeline.feed(
+        "outer_rows",
+        Operation::BatchInsert {
+            new: vec![
+                seven.clone(),
+                seven.clone(),
+                nine.clone(),
+                outer(3, Field::Null),
+            ],
+        },
+    );
+    pipeline.feed("other_rows", insert(inner(Field::Int(9))));
+    pipeline.feed("inner_rows", insert(inner(Field::Int(7))));
+    pipeline.assert_rows(vec![]);
+    pipeline.feed("inner_rows", insert(inner(Field::Int(9))));
+    pipeline.assert_rows(vec![nine]);
+    pipeline.feed(
+        "other_rows",
+        Operation::Update {
+            old: inner(Field::Int(9)),
+            new: inner(Field::Int(7)),
+        },
+    );
+    pipeline.assert_rows(vec![seven.clone(), seven]);
+    pipeline.feed("inner_rows", delete(inner(Field::Int(7))));
+    pipeline.assert_rows(vec![]);
+    assert_eq!(pipeline.schema.fields.len(), 2);
+}
+
+#[test]
+fn a_sibling_membership_cannot_read_a_previous_subquery_private_cte() {
+    let result = Pipeline::try_new(
+        "SELECT * FROM outer_rows WHERE \
+         value IN (WITH private_values AS (SELECT value FROM inner_rows) \
+                   SELECT value FROM private_values) \
+         AND value IN (SELECT value FROM private_values)",
+        vec![
+            ("outer_rows", table_schema("outer_rows", true)),
+            ("inner_rows", table_schema("inner_rows", false)),
+        ],
+    );
+    assert!(
+        result.is_err(),
+        "a sibling query exposed the inner WITH binding"
+    );
+}
+
+#[test]
+fn nested_and_multiple_membership_queries_track_nulls_and_duplicates() {
+    let mut pipeline = Pipeline::new(
+        "SELECT * FROM outer_rows WHERE \
+         value IN (SELECT value FROM inner_rows WHERE value IN \
+                   (SELECT value FROM allowed_rows)) \
+         AND value NOT IN (SELECT value FROM blocked_rows)",
+        vec![
+            ("outer_rows", table_schema("outer_rows", true)),
+            ("inner_rows", table_schema("inner_rows", false)),
+            ("allowed_rows", table_schema("allowed_rows", false)),
+            ("blocked_rows", table_schema("blocked_rows", false)),
+        ],
+    );
+    let seven = outer(1, Field::Int(7));
+    let nine = outer(2, Field::Int(9));
+    pipeline.feed(
+        "outer_rows",
+        Operation::BatchInsert {
+            new: vec![
+                seven.clone(),
+                seven.clone(),
+                nine.clone(),
+                outer(3, Field::Null),
+            ],
+        },
+    );
+    pipeline.feed(
+        "inner_rows",
+        Operation::BatchInsert {
+            new: vec![
+                inner(Field::Int(7)),
+                inner(Field::Int(7)),
+                inner(Field::Int(9)),
+                inner(Field::Null),
+            ],
+        },
+    );
+    pipeline.assert_rows(vec![]);
+    pipeline.feed("allowed_rows", insert(inner(Field::Int(7))));
+    pipeline.assert_rows(vec![seven.clone(), seven.clone()]);
+    pipeline.feed("blocked_rows", insert(inner(Field::Null)));
+    pipeline.assert_rows(vec![]);
+    pipeline.feed("blocked_rows", insert(inner(Field::Int(7))));
+    pipeline.feed("blocked_rows", delete(inner(Field::Null)));
+    pipeline.assert_rows(vec![]);
+    pipeline.feed("blocked_rows", delete(inner(Field::Int(7))));
+    pipeline.assert_rows(vec![seven.clone(), seven]);
+    pipeline.feed(
+        "allowed_rows",
+        Operation::Update {
+            old: inner(Field::Int(7)),
+            new: inner(Field::Int(9)),
+        },
+    );
+    pipeline.assert_rows(vec![nine]);
+    pipeline.feed("inner_rows", delete(inner(Field::Int(9))));
+    pipeline.feed("allowed_rows", insert(inner(Field::Null)));
+    pipeline.assert_rows(vec![]);
+    assert_eq!(pipeline.schema.fields.len(), 2);
+}
+
+#[test]
+fn computed_inner_projection_changes_membership_after_updates() {
+    let mut pipeline = Pipeline::two_tables(
+        "SELECT * FROM outer_rows WHERE value IN \
+         (SELECT value + 1 AS next_value FROM inner_rows)",
+    );
+    let eight = outer(1, Field::Int(8));
+    let ten = outer(2, Field::Int(10));
+    pipeline.feed(
+        "outer_rows",
+        Operation::BatchInsert {
+            new: vec![eight.clone(), ten.clone(), outer(3, Field::Null)],
+        },
+    );
+    pipeline.feed("inner_rows", insert(inner(Field::Int(7))));
+    pipeline.assert_rows(vec![eight]);
+    pipeline.feed(
+        "inner_rows",
+        Operation::Update {
+            old: inner(Field::Int(7)),
+            new: inner(Field::Int(9)),
+        },
+    );
+    pipeline.assert_rows(vec![ten.clone()]);
+    pipeline.feed("inner_rows", insert(inner(Field::Null)));
+    pipeline.assert_rows(vec![ten]);
+    pipeline.feed("inner_rows", delete(inner(Field::Int(9))));
+    pipeline.assert_rows(vec![]);
+}
+
+#[test]
+fn union_membership_retains_matches_until_both_branches_remove_them() {
+    for quantifier in ["ALL", "DISTINCT"] {
+        let mut pipeline = Pipeline::new(
+            &format!(
+                "SELECT * FROM outer_rows WHERE value IN \
+                      (SELECT value FROM inner_rows UNION {quantifier} \
+                       SELECT value FROM other_rows)"
+            ),
+            vec![
+                ("outer_rows", table_schema("outer_rows", true)),
+                ("inner_rows", table_schema("inner_rows", false)),
+                ("other_rows", table_schema("other_rows", false)),
+            ],
+        );
+        let seven = outer(1, Field::Int(7));
+        let nine = outer(2, Field::Int(9));
+        pipeline.feed(
+            "outer_rows",
+            Operation::BatchInsert {
+                new: vec![
+                    seven.clone(),
+                    seven.clone(),
+                    nine.clone(),
+                    outer(3, Field::Null),
+                ],
+            },
+        );
+        pipeline.feed(
+            "inner_rows",
+            Operation::BatchInsert {
+                new: vec![
+                    inner(Field::Int(7)),
+                    inner(Field::Int(7)),
+                    inner(Field::Null),
+                ],
+            },
+        );
+        pipeline.feed(
+            "other_rows",
+            Operation::BatchInsert {
+                new: vec![inner(Field::Int(7)), inner(Field::Int(9))],
+            },
+        );
+        pipeline.assert_rows(vec![seven.clone(), seven.clone(), nine.clone()]);
+        pipeline.feed("inner_rows", delete(inner(Field::Int(7))));
+        pipeline.feed("inner_rows", delete(inner(Field::Int(7))));
+        pipeline.assert_rows(vec![seven.clone(), seven, nine.clone()]);
+        pipeline.feed(
+            "other_rows",
+            Operation::Update {
+                old: inner(Field::Int(7)),
+                new: inner(Field::Int(9)),
+            },
+        );
+        pipeline.assert_rows(vec![nine.clone()]);
+        pipeline.feed("other_rows", delete(inner(Field::Int(9))));
+        pipeline.assert_rows(vec![nine]);
+        pipeline.feed("other_rows", delete(inner(Field::Int(9))));
+        pipeline.assert_rows(vec![]);
+    }
+}
+
+#[test]
+fn grouped_having_membership_changes_when_a_group_crosses_its_threshold() {
+    let mut pipeline = Pipeline::two_tables(
+        "SELECT * FROM outer_rows WHERE value IN \
+         (SELECT value FROM inner_rows GROUP BY value HAVING COUNT(*) > 1)",
+    );
+    let seven = outer(1, Field::Int(7));
+    let nine = outer(2, Field::Int(9));
+    pipeline.feed(
+        "outer_rows",
+        Operation::BatchInsert {
+            new: vec![seven.clone(), seven.clone(), nine.clone()],
+        },
+    );
+    pipeline.feed("inner_rows", insert(inner(Field::Int(7))));
+    pipeline.assert_rows(vec![]);
+    pipeline.feed("inner_rows", insert(inner(Field::Int(7))));
+    pipeline.assert_rows(vec![seven.clone(), seven.clone()]);
+    pipeline.feed(
+        "inner_rows",
+        Operation::BatchInsert {
+            new: vec![inner(Field::Int(9)), inner(Field::Int(9))],
+        },
+    );
+    pipeline.assert_rows(vec![seven.clone(), seven, nine.clone()]);
+    pipeline.feed(
+        "inner_rows",
+        Operation::Update {
+            old: inner(Field::Int(7)),
+            new: inner(Field::Int(9)),
+        },
+    );
+    pipeline.assert_rows(vec![nine.clone()]);
+    pipeline.feed("inner_rows", delete(inner(Field::Int(9))));
+    pipeline.assert_rows(vec![nine]);
+    pipeline.feed("inner_rows", delete(inner(Field::Int(9))));
+    pipeline.assert_rows(vec![]);
+}
+
+#[test]
+fn joined_inner_rows_keep_membership_until_the_last_match_disappears() {
+    let mut pipeline = Pipeline::new(
+        "SELECT * FROM outer_rows WHERE value IN \
+         (SELECT i.value FROM inner_rows i JOIN other_rows j ON i.value = j.value)",
+        vec![
+            ("outer_rows", table_schema("outer_rows", true)),
+            ("inner_rows", table_schema("inner_rows", false)),
+            ("other_rows", table_schema("other_rows", false)),
+        ],
+    );
+    let seven = outer(1, Field::Int(7));
+    let nine = outer(2, Field::Int(9));
+    pipeline.feed(
+        "outer_rows",
+        Operation::BatchInsert {
+            new: vec![seven.clone(), seven.clone(), nine.clone()],
+        },
+    );
+    pipeline.feed(
+        "inner_rows",
+        Operation::BatchInsert {
+            new: vec![
+                inner(Field::Int(7)),
+                inner(Field::Int(7)),
+                inner(Field::Int(9)),
+            ],
+        },
+    );
+    pipeline.assert_rows(vec![]);
+    pipeline.feed("other_rows", insert(inner(Field::Int(7))));
+    pipeline.feed("other_rows", insert(inner(Field::Int(7))));
+    pipeline.assert_rows(vec![seven.clone(), seven.clone()]);
+    pipeline.feed("other_rows", delete(inner(Field::Int(7))));
+    pipeline.assert_rows(vec![seven.clone(), seven]);
+    pipeline.feed(
+        "other_rows",
+        Operation::Update {
+            old: inner(Field::Int(7)),
+            new: inner(Field::Int(9)),
+        },
+    );
+    pipeline.assert_rows(vec![nine]);
+    pipeline.feed("inner_rows", delete(inner(Field::Int(9))));
+    pipeline.assert_rows(vec![]);
+}
+
+#[test]
+fn expanded_inner_query_dependencies_reject_volatile_evaluation() {
+    use dozer_sql_expression::sqlparser::{dialect::DozerDialect, parser::Parser};
+
+    for subquery in [
+        "WITH candidate AS (SELECT value FROM inner_rows WHERE NOW() IS NOT NULL) \
+         SELECT value FROM candidate",
+        "SELECT value FROM inner_rows WHERE NOW() IS NOT NULL \
+         UNION ALL SELECT value FROM other_rows",
+        "SELECT value FROM inner_rows \
+         UNION DISTINCT SELECT value FROM other_rows WHERE NOW() IS NOT NULL",
+        "WITH candidate AS (SELECT value FROM inner_rows WHERE NOW() IS NOT NULL) \
+         SELECT c.value FROM candidate c JOIN other_rows j ON c.value = j.value",
+        "WITH candidate AS (SELECT value FROM other_rows WHERE NOW() IS NOT NULL) \
+         SELECT i.value FROM inner_rows i JOIN candidate c ON i.value = c.value",
+        "SELECT i.value FROM inner_rows i JOIN other_rows j ON i.value = j.value \
+         WHERE NOW() IS NOT NULL",
+    ] {
+        let sql = format!("SELECT * FROM outer_rows WHERE value IN ({subquery})");
+        Parser::parse_sql(&DozerDialect {}, &sql).unwrap();
+        let result = Pipeline::try_new(
+            &sql,
+            vec![
+                ("outer_rows", table_schema("outer_rows", true)),
+                ("inner_rows", table_schema("inner_rows", false)),
+                ("other_rows", table_schema("other_rows", false)),
+            ],
+        );
+        let error = match result {
+            Ok(_) => panic!("volatile membership dependency was accepted: {subquery}"),
+            Err(error) => error,
+        };
+        assert!(
+            error.to_string().contains("deterministic"),
+            "expected the replay guard to reject {subquery}, got {error}"
+        );
+    }
+}
+
+#[test]
+fn ancestor_cte_and_derived_modifiers_cannot_bypass_membership_validation() {
+    use dozer_sql_expression::sqlparser::{dialect::DozerDialect, parser::Parser};
+
+    for (subquery, expected) in [
+        ("SELECT TOP (1) value FROM inner_rows", "SELECT modifiers"),
+        (
+            "SELECT value FROM inner_rows FETCH FIRST 1 ROW ONLY",
+            "FETCH",
+        ),
+    ] {
+        for sql in [
+            format!("SELECT * FROM outer_rows WHERE value IN ({subquery})"),
+            format!(
+                "WITH candidate AS ({subquery}) \
+                     SELECT * FROM outer_rows WHERE value IN (SELECT value FROM candidate)"
+            ),
+            format!(
+                "WITH candidate AS \
+                     (SELECT value FROM inner_rows UNION ALL ({subquery})) \
+                     SELECT * FROM outer_rows WHERE value IN (SELECT value FROM candidate)"
+            ),
+            format!(
+                "SELECT * FROM outer_rows WHERE value IN \
+                     (SELECT value FROM ({subquery}) derived_rows)"
+            ),
+        ] {
+            Parser::parse_sql(&DozerDialect {}, &sql).unwrap();
+            let error = match Pipeline::try_new(
+                &sql,
+                vec![
+                    ("outer_rows", table_schema("outer_rows", true)),
+                    ("inner_rows", table_schema("inner_rows", false)),
+                ],
+            ) {
+                Ok(_) => panic!("unsupported dependency modifier was accepted: {sql}"),
+                Err(error) => error,
+            };
+            assert!(error.to_string().contains(expected), "{sql}: {error}");
+        }
+    }
+}
+
+#[test]
+fn unsupported_aggregate_shapes_are_rejected_before_processing() {
+    use dozer_sql_expression::sqlparser::{dialect::DozerDialect, parser::Parser};
+
+    for (sql, expected) in [
+        (
+            "SELECT * FROM outer_rows WHERE value IN \
+          (SELECT COUNT(*) FROM inner_rows)",
+            "without GROUP BY",
+        ),
+        (
+            "WITH candidate AS (SELECT COUNT(*) AS value FROM inner_rows) \
+          SELECT * FROM outer_rows WHERE value IN (SELECT value FROM candidate)",
+            "without GROUP BY",
+        ),
+        (
+            "SELECT * FROM outer_rows WHERE value IN \
+          (SELECT COUNT(DISTINCT value) FROM inner_rows GROUP BY value)",
+            "function modifiers",
+        ),
+        (
+            "SELECT * FROM outer_rows WHERE value IN \
+          (SELECT COUNT(*) OVER () FROM inner_rows GROUP BY value)",
+            "function modifiers",
+        ),
+    ] {
+        Parser::parse_sql(&DozerDialect {}, sql).unwrap();
+        let error = match Pipeline::try_new(
+            sql,
+            vec![
+                ("outer_rows", table_schema("outer_rows", true)),
+                ("inner_rows", table_schema("inner_rows", false)),
+            ],
+        ) {
+            Ok(_) => panic!("unsupported aggregate was accepted: {sql}"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains(expected), "{sql}: {error}");
+    }
+}
+
+#[test]
+fn parenthesized_select_and_union_branches_keep_inner_with_bindings() {
+    for (subquery, union) in [
+        (
+            "WITH candidate AS (SELECT value FROM inner_rows) \
+          (SELECT candidate.value FROM candidate)",
+            false,
+        ),
+        (
+            "SELECT value FROM inner_rows UNION ALL \
+          (WITH candidate AS (SELECT value FROM other_rows) \
+           SELECT candidate.value FROM candidate)",
+            true,
+        ),
+    ] {
+        let mut pipeline = Pipeline::new(
+            &format!("SELECT * FROM outer_rows WHERE value IN ({subquery})"),
+            vec![
+                ("outer_rows", table_schema("outer_rows", true)),
+                ("inner_rows", table_schema("inner_rows", false)),
+                ("other_rows", table_schema("other_rows", false)),
+            ],
+        );
+        let seven = outer(1, Field::Int(7));
+        let nine = outer(2, Field::Int(9));
+        pipeline.feed(
+            "outer_rows",
+            Operation::BatchInsert {
+                new: vec![seven.clone(), nine.clone()],
+            },
+        );
+        pipeline.feed("inner_rows", insert(inner(Field::Int(7))));
+        pipeline.assert_rows(vec![seven.clone()]);
+        if union {
+            pipeline.feed("other_rows", insert(inner(Field::Int(9))));
+            pipeline.assert_rows(vec![seven, nine.clone()]);
+        }
+        pipeline.feed(
+            "inner_rows",
+            Operation::Update {
+                old: inner(Field::Int(7)),
+                new: inner(Field::Int(9)),
+            },
+        );
+        pipeline.assert_rows(vec![nine.clone()]);
+        pipeline.feed("inner_rows", delete(inner(Field::Int(9))));
+        if union {
+            pipeline.assert_rows(vec![nine]);
+            pipeline.feed("other_rows", delete(inner(Field::Int(9))));
+        }
+        pipeline.assert_rows(vec![]);
+    }
+}
+
+#[test]
+fn cte_join_without_alias_uses_its_visible_cte_name() {
+    let mut pipeline = Pipeline::new(
+        "WITH candidate AS (SELECT value FROM inner_rows) \
+         SELECT * FROM outer_rows WHERE value IN \
+         (SELECT candidate.value FROM candidate JOIN other_rows \
+          ON candidate.value = other_rows.value)",
+        vec![
+            ("outer_rows", table_schema("outer_rows", true)),
+            ("inner_rows", table_schema("inner_rows", false)),
+            ("other_rows", table_schema("other_rows", false)),
+        ],
+    );
+    let seven = outer(1, Field::Int(7));
+    let nine = outer(2, Field::Int(9));
+    pipeline.feed(
+        "outer_rows",
+        Operation::BatchInsert {
+            new: vec![seven.clone(), nine.clone()],
+        },
+    );
+    pipeline.feed("inner_rows", insert(inner(Field::Int(7))));
+    pipeline.assert_rows(vec![]);
+    pipeline.feed("other_rows", insert(inner(Field::Int(7))));
+    pipeline.assert_rows(vec![seven]);
+    pipeline.feed(
+        "other_rows",
+        Operation::Update {
+            old: inner(Field::Int(7)),
+            new: inner(Field::Int(9)),
+        },
+    );
+    pipeline.assert_rows(vec![]);
+    pipeline.feed("inner_rows", insert(inner(Field::Int(9))));
+    pipeline.assert_rows(vec![nine]);
+    pipeline.feed("inner_rows", delete(inner(Field::Int(9))));
+    pipeline.assert_rows(vec![]);
+}
+
+#[test]
+fn grouped_count_projection_keeps_shared_counts_until_the_last_group_changes() {
+    let mut pipeline = Pipeline::two_tables(
+        "SELECT * FROM outer_rows WHERE value IN \
+         (SELECT COUNT(*) FROM inner_rows GROUP BY value)",
+    );
+    let one = outer(1, Field::Int(1));
+    let two = outer(2, Field::Int(2));
+    pipeline.feed(
+        "outer_rows",
+        Operation::BatchInsert {
+            new: vec![one.clone(), two.clone()],
+        },
+    );
+    pipeline.feed("inner_rows", insert(inner(Field::Int(7))));
+    pipeline.assert_rows(vec![one.clone()]);
+    pipeline.feed("inner_rows", insert(inner(Field::Int(9))));
+    pipeline.assert_rows(vec![one.clone()]);
+    pipeline.feed("inner_rows", insert(inner(Field::Int(7))));
+    pipeline.assert_rows(vec![one.clone(), two.clone()]);
+    pipeline.feed("inner_rows", delete(inner(Field::Int(9))));
+    pipeline.assert_rows(vec![two]);
+    pipeline.feed(
+        "inner_rows",
+        Operation::Update {
+            old: inner(Field::Int(7)),
+            new: inner(Field::Int(9)),
+        },
+    );
+    pipeline.assert_rows(vec![one.clone()]);
+    pipeline.feed("inner_rows", delete(inner(Field::Int(7))));
+    pipeline.assert_rows(vec![one]);
+    pipeline.feed("inner_rows", delete(inner(Field::Int(9))));
+    pipeline.assert_rows(vec![]);
+}
+
+#[test]
+fn membership_demo_with_synthetic_rows() {
+    let sql = "SELECT * FROM outer_rows WHERE value IN (SELECT value FROM inner_rows)";
+    let mut pipeline = Pipeline::two_tables(sql);
+    println!("Synthetic data; real SQL planner and processors; synchronous event queue.");
+    println!("SQL: {sql}");
+    let seven = outer(1, Field::Int(7));
+    let nine = outer(2, Field::Int(9));
+    let steps = [
+        ("outer_rows", insert(seven.clone()), vec![]),
+        ("outer_rows", insert(nine.clone()), vec![]),
+        ("inner_rows", insert(inner(Field::Int(7))), vec![seven]),
+        (
+            "inner_rows",
+            Operation::Update {
+                old: inner(Field::Int(7)),
+                new: inner(Field::Int(9)),
+            },
+            vec![nine.clone()],
+        ),
+        ("outer_rows", delete(nine), vec![]),
+        ("inner_rows", delete(inner(Field::Int(9))), vec![]),
+    ];
+    for (step, (table, operation, expected)) in steps.into_iter().enumerate() {
+        println!("Step {} input {table}: {operation:?}", step + 1);
+        let output = pipeline.feed(table, operation);
+        println!("  Emitted operations: {output:?}");
+        println!("  Result rows: {:?}", pipeline.rows);
+        pipeline.assert_rows(expected);
+    }
+    println!("PASS: all six input changes produced the expected result rows.");
 }
 
 #[test]

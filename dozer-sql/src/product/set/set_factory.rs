@@ -64,7 +64,8 @@ impl ProcessorFactory for SetProcessorFactory {
 
         let output_schema = Schema {
             fields: output_columns,
-            primary_index: input_schemas[&0].primary_index.clone(),
+            // A key from either input is not necessarily unique across UNION.
+            primary_index: vec![],
         };
 
         Ok(output_schema)
@@ -90,27 +91,86 @@ impl ProcessorFactory for SetProcessorFactory {
 fn validate_set_operation_input_schemas(
     input_schemas: &HashMap<PortHandle, Schema>,
 ) -> Result<Vec<FieldDefinition>, PipelineError> {
-    let mut left_columns = input_schemas[&0].fields.clone();
-    let mut right_columns = input_schemas[&0].fields.clone();
-
-    left_columns.sort();
-    right_columns.sort();
-
-    let mut output_fields = Vec::new();
-    for (left, right) in left_columns.iter().zip(right_columns.iter()) {
-        if !is_similar_fields(left, right) {
-            return Err(PipelineError::SetError(SetError::InvalidInputSchemas));
-        }
-        output_fields.push(FieldDefinition::new(
-            left.name.clone(),
-            left.typ,
-            left.nullable,
-            SourceDefinition::Dynamic,
-        ));
+    let left = input_schemas
+        .get(&0)
+        .ok_or(PipelineError::InvalidPortHandle(0))?;
+    let right = input_schemas
+        .get(&1)
+        .ok_or(PipelineError::InvalidPortHandle(1))?;
+    if left.fields.len() != right.fields.len() {
+        return Err(PipelineError::SetError(SetError::InvalidInputSchemas));
     }
-    Ok(output_fields)
+    left.fields
+        .iter()
+        .zip(&right.fields)
+        .map(|(left, right)| {
+            if left.typ != right.typ {
+                return Err(PipelineError::SetError(SetError::InvalidInputSchemas));
+            }
+            // UNION aligns values by position and keeps the left branch's names.
+            Ok(FieldDefinition::new(
+                left.name.clone(),
+                left.typ,
+                left.nullable || right.nullable,
+                SourceDefinition::Dynamic,
+            ))
+        })
+        .collect()
 }
 
-fn is_similar_fields(left: &FieldDefinition, right: &FieldDefinition) -> bool {
-    left.name == right.name && left.typ == right.typ && left.nullable == right.nullable
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dozer_types::types::FieldType;
+
+    fn schema(fields: &[(&str, FieldType, bool)]) -> Schema {
+        Schema {
+            fields: fields
+                .iter()
+                .map(|(name, typ, nullable)| {
+                    FieldDefinition::new((*name).into(), *typ, *nullable, SourceDefinition::Dynamic)
+                })
+                .collect(),
+            primary_index: vec![],
+        }
+    }
+
+    #[test]
+    fn union_schema_preserves_position_and_combines_nullability() {
+        let left = schema(&[
+            ("z", FieldType::Int, false),
+            ("a", FieldType::String, false),
+        ]);
+        let right = schema(&[
+            ("other", FieldType::Int, true),
+            ("name", FieldType::String, false),
+        ]);
+        let output =
+            validate_set_operation_input_schemas(&HashMap::from([(0, left), (1, right)])).unwrap();
+        assert_eq!(
+            output,
+            schema(&[("z", FieldType::Int, true), ("a", FieldType::String, false)]).fields
+        );
+    }
+
+    #[test]
+    fn union_schema_rejects_wrong_right_branch_width_or_type() {
+        let left = schema(&[("value", FieldType::Int, true)]);
+        for right in [
+            schema(&[]),
+            schema(&[("value", FieldType::String, true)]),
+            schema(&[
+                ("value", FieldType::Int, true),
+                ("extra", FieldType::Int, true),
+            ]),
+        ] {
+            assert!(matches!(
+                validate_set_operation_input_schemas(&HashMap::from([
+                    (0, left.clone()),
+                    (1, right)
+                ])),
+                Err(PipelineError::SetError(SetError::InvalidInputSchemas))
+            ));
+        }
+    }
 }

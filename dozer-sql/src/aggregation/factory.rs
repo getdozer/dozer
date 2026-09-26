@@ -70,6 +70,16 @@ impl AggregationProcessorFactory {
                 self.having.clone(),
             )
             .await?;
+        if self.replay.is_required()
+            && !projection_planner.aggregation_output.is_empty()
+            && projection_planner.groupby.is_empty()
+        {
+            // The existing aggregate processor emits no row for empty input;
+            // global COUNT/SUM cannot supply SQL's empty-set row to membership.
+            return Err(PipelineError::InvalidQuery(
+                "IN subqueries do not support aggregates without GROUP BY".into(),
+            ));
+        }
         for expression in projection_planner
             .projection_output
             .iter()

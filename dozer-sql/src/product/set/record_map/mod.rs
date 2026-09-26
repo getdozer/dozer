@@ -24,6 +24,9 @@ pub trait CountingRecordMap {
     /// Depending on the implementation, this number may not be accurate.
     fn estimate_count(&self, record: &Record) -> u64;
 
+    /// Returns the stored representation when exact counting retains it.
+    fn representative(&self, record: &Record) -> Option<Record>;
+
     /// Clears the map, removing all records.
     fn clear(&mut self);
 }
@@ -62,6 +65,12 @@ impl CountingRecordMap for AccurateCountingRecordMap {
         self.map.get(record).copied().unwrap_or(0)
     }
 
+    fn representative(&self, record: &Record) -> Option<Record> {
+        self.map
+            .get_key_value(record)
+            .map(|(stored, _)| stored.clone())
+    }
+
     fn clear(&mut self) {
         self.map.clear();
     }
@@ -98,6 +107,10 @@ impl CountingRecordMap for ProbabilisticCountingRecordMap {
 
     fn estimate_count(&self, record: &Record) -> u64 {
         self.map.estimate_count(record) as u64
+    }
+
+    fn representative(&self, _record: &Record) -> Option<Record> {
+        None
     }
 
     fn clear(&mut self) {
