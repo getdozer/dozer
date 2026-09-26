@@ -537,15 +537,26 @@ fn set_to_pipeline(
         gen_set_name = table_info.override_name.to_owned().unwrap();
     }
 
-    let set_proc_fac = SetProcessorFactory::new(
-        gen_set_name.clone(),
-        set_quantifier,
-        pipeline
-            .flags()
-            .enable_probabilistic_optimizations
-            .in_sets
-            .unwrap_or(false),
-    );
+    let probabilistic = pipeline
+        .flags()
+        .enable_probabilistic_optimizations
+        .in_sets
+        .unwrap_or(false);
+    if probabilistic
+        && matches!(
+            set_quantifier,
+            SetQuantifier::None | SetQuantifier::Distinct
+        )
+    {
+        // Approximate counting cannot retain the original row representation
+        // for a later retraction. Membership needs exact, replayable inputs.
+        let requirement = replay_requirements
+            .last()
+            .ok_or_else(|| InvalidQuery("UNION input has no replay requirement".into()))?;
+        requirement.reject_when_required("IN subqueries require exact UNION counting".into());
+    }
+    let set_proc_fac =
+        SetProcessorFactory::new(gen_set_name.clone(), set_quantifier, probabilistic);
 
     pipeline.add_processor(Box::new(set_proc_fac), gen_set_name.clone());
 

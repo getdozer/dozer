@@ -4,7 +4,7 @@ use std::{
 };
 
 use dozer_core::{
-    app::{App, AppPipeline},
+    app::{App, AppPipeline, PipelineFlags},
     appsource::{AppSourceManager, AppSourceMappings},
     channels::ProcessorChannelForwarder,
     dag_schemas::{DagHaveSchemas, DagSchemas},
@@ -84,8 +84,16 @@ impl Pipeline {
     }
 
     fn try_new(sql: &str, tables: Vec<(&str, Schema)>) -> Result<Self, BoxedError> {
+        Self::try_new_with_flags(sql, tables, PipelineFlags::default())
+    }
+
+    fn try_new_with_flags(
+        sql: &str,
+        tables: Vec<(&str, Schema)>,
+        flags: PipelineFlags,
+    ) -> Result<Self, BoxedError> {
         let runtime = create_test_runtime();
-        let mut pipeline = AppPipeline::new_with_default_flags();
+        let mut pipeline = AppPipeline::new(flags);
         let context = statement_to_pipeline(
             sql,
             &mut pipeline,
@@ -1150,6 +1158,85 @@ fn grouped_count_projection_keeps_shared_counts_until_the_last_group_changes() {
     pipeline.assert_rows(vec![one]);
     pipeline.feed("inner_rows", delete(inner(Field::Int(9))));
     pipeline.assert_rows(vec![]);
+}
+
+#[test]
+fn probabilistic_union_distinct_is_rejected_for_direct_and_cte_membership() {
+    let mut flags = PipelineFlags::default();
+    flags.enable_probabilistic_optimizations.in_sets = Some(true);
+    for quantifier in ["", " DISTINCT"] {
+        let union =
+            format!("SELECT value FROM inner_rows UNION{quantifier} SELECT value FROM other_rows");
+        for sql in [
+            format!("SELECT * FROM outer_rows WHERE value IN ({union})"),
+            format!(
+                "WITH candidate AS ({union}) SELECT * FROM outer_rows \
+                     WHERE value IN (SELECT value FROM candidate)"
+            ),
+        ] {
+            let error = match Pipeline::try_new_with_flags(
+                &sql,
+                vec![
+                    ("outer_rows", table_schema("outer_rows", true)),
+                    ("inner_rows", table_schema("inner_rows", false)),
+                    ("other_rows", table_schema("other_rows", false)),
+                ],
+                flags.clone(),
+            ) {
+                Ok(_) => panic!("membership accepted probabilistic UNION counting: {sql}"),
+                Err(error) => error,
+            };
+            assert!(
+                error.to_string().contains("exact UNION counting"),
+                "{sql}: {error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn probabilistic_set_flag_keeps_union_all_and_ordinary_union_distinct_working() {
+    let mut flags = PipelineFlags::default();
+    flags.enable_probabilistic_optimizations.in_sets = Some(true);
+    let mut membership = Pipeline::try_new_with_flags(
+        "SELECT * FROM outer_rows WHERE value IN \
+         (SELECT value FROM inner_rows UNION ALL SELECT value FROM other_rows)",
+        vec![
+            ("outer_rows", table_schema("outer_rows", true)),
+            ("inner_rows", table_schema("inner_rows", false)),
+            ("other_rows", table_schema("other_rows", false)),
+        ],
+        flags.clone(),
+    )
+    .unwrap();
+    let row = outer(1, Field::Int(7));
+    membership.feed("outer_rows", insert(row.clone()));
+    membership.feed("inner_rows", insert(inner(Field::Int(7))));
+    membership.assert_rows(vec![row.clone()]);
+    membership.feed("other_rows", insert(inner(Field::Int(7))));
+    membership.feed("inner_rows", delete(inner(Field::Int(7))));
+    membership.assert_rows(vec![row]);
+    membership.feed("other_rows", delete(inner(Field::Int(7))));
+    membership.assert_rows(vec![]);
+
+    let mut ordinary = Pipeline::try_new_with_flags(
+        "SELECT value FROM inner_rows UNION DISTINCT SELECT value FROM other_rows",
+        vec![
+            ("inner_rows", table_schema("inner_rows", false)),
+            ("other_rows", table_schema("other_rows", false)),
+        ],
+        flags,
+    )
+    .unwrap();
+    let row = inner(Field::Int(7));
+    ordinary.feed("inner_rows", insert(row.clone()));
+    ordinary.assert_rows(vec![row.clone()]);
+    ordinary.feed("other_rows", insert(row.clone()));
+    ordinary.assert_rows(vec![row.clone()]);
+    ordinary.feed("inner_rows", delete(row.clone()));
+    ordinary.assert_rows(vec![row.clone()]);
+    ordinary.feed("other_rows", delete(row));
+    ordinary.assert_rows(vec![]);
 }
 
 #[test]
