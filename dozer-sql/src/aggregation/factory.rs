@@ -1,11 +1,13 @@
 use crate::planner::projection::CommonPlanner;
 use crate::projection::processor::ProjectionProcessor;
+use crate::selection::replay::ReplayRequirement;
 use crate::{aggregation::processor::AggregationProcessor, errors::PipelineError};
 use dozer_core::event::EventHub;
 use dozer_core::{
     node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
+use dozer_sql_expression::execution::Expression;
 use dozer_sql_expression::sqlparser::ast::{Expr, SelectItem};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::udf_config::UdfConfig;
@@ -25,6 +27,7 @@ pub struct AggregationProcessorFactory {
     enable_probabilistic_optimizations: bool,
     udfs: Vec<UdfConfig>,
     runtime: Arc<Runtime>,
+    replay: ReplayRequirement,
 
     /// Type name can only be determined after schema propagation.
     type_name: Mutex<Option<String>>,
@@ -48,8 +51,13 @@ impl AggregationProcessorFactory {
             enable_probabilistic_optimizations,
             udfs,
             runtime,
+            replay: ReplayRequirement::default(),
             type_name: Mutex::new(None),
         }
+    }
+
+    pub(crate) fn replay_requirement(&self) -> ReplayRequirement {
+        self.replay.clone()
     }
 
     async fn get_planner(&self, input_schema: Schema) -> Result<CommonPlanner, PipelineError> {
@@ -62,6 +70,23 @@ impl AggregationProcessorFactory {
                 self.having.clone(),
             )
             .await?;
+        for expression in projection_planner
+            .projection_output
+            .iter()
+            .chain(projection_planner.groupby.iter())
+            .chain(projection_planner.having.iter())
+        {
+            self.replay.validate(expression)?;
+        }
+        for aggregate in &projection_planner.aggregation_output {
+            if let Expression::AggregateFunction { args, .. } = aggregate {
+                for argument in args {
+                    self.replay.validate(argument)?;
+                }
+            } else {
+                self.replay.validate(aggregate)?;
+            }
+        }
         Ok(projection_planner)
     }
 }

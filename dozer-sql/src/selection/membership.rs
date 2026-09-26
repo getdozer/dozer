@@ -367,7 +367,7 @@ fn row_key(row: &Record) -> Result<Vec<u8>, PipelineError> {
         .map_err(|error| PipelineError::InternalError(Box::new(error)))
 }
 
-fn validate_operand(expression: &Expression) -> Result<(), PipelineError> {
+pub(crate) fn validate_operand(expression: &Expression) -> Result<(), PipelineError> {
     // The retained operand must be reproducible for identical outer rows.
     // Unknown extension functions are excluded until they declare determinism.
     use Expression::*;

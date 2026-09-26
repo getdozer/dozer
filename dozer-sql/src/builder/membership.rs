@@ -56,6 +56,7 @@ impl MembershipPlanner<'_> {
                 // Preserve visible CTEs, but do not expose this query's generated
                 // table names to a subsequent sibling subquery.
                 let visible_tables = self.context.pipeline_map.clone();
+                let visible_requirements = self.context.replay_requirements.clone();
                 let result = query_to_pipeline(
                     TableInfo {
                         name: NameOrAlias(table.clone(), None),
@@ -67,12 +68,22 @@ impl MembershipPlanner<'_> {
                     self.pipeline_idx,
                     false,
                 );
+                if let Some(requirements) = self
+                    .context
+                    .replay_requirements
+                    .get(&(self.pipeline_idx, table.clone()))
+                {
+                    for requirement in requirements {
+                        requirement.require();
+                    }
+                }
                 let values = self
                     .context
                     .pipeline_map
                     .get(&(self.pipeline_idx, table))
                     .cloned();
                 self.context.pipeline_map = visible_tables;
+                self.context.replay_requirements = visible_requirements;
                 result?;
                 let values = values.ok_or_else(|| {
                     PipelineError::InvalidQuery("IN subquery has no output relation".into())

@@ -69,8 +69,17 @@ fn insert_table_processor_to_pipeline(
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
-    let relation_name_or_alias = get_name_or_alias(&relation)?;
+    let mut relation_name_or_alias = get_name_or_alias(&relation)?;
     let product_input_name = get_from_source(relation, pipeline, query_context, pipeline_idx)?.0;
+    if relation_name_or_alias.1.is_none()
+        && query_context
+            .pipeline_map
+            .contains_key(&(pipeline_idx, product_input_name.clone()))
+    {
+        // A CTE exposes its own relation name, not the source table names which
+        // happened to produce its columns.
+        relation_name_or_alias.1 = Some(relation_name_or_alias.0.clone());
+    }
 
     let processor_name = format!(
         "from:{}--{}",

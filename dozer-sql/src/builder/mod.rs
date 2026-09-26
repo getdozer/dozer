@@ -3,6 +3,7 @@ use crate::builder::PipelineError::InvalidQuery;
 use crate::errors::PipelineError;
 use crate::projection::trim::TrimMembershipColumns;
 use crate::selection::factory::SelectionProcessorFactory;
+use crate::selection::replay::ReplayRequirement;
 use dozer_core::app::AppPipeline;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -38,6 +39,7 @@ pub struct OutputNodeInfo {
 pub struct QueryContext {
     // Internal tables map, used to store the tables that are created by the queries
     pipeline_map: HashMap<(usize, String), OutputNodeInfo>,
+    replay_requirements: HashMap<(usize, String), Vec<ReplayRequirement>>,
 
     // Output tables map that are marked with "INTO" used to store the tables, these can be exposed to sinks.
     pub output_tables_map: HashMap<String, OutputNodeInfo>,
@@ -67,6 +69,7 @@ impl QueryContext {
     pub fn new(udfs: Vec<UdfConfig>, runtime: Arc<Runtime>) -> Self {
         QueryContext {
             pipeline_map: Default::default(),
+            replay_requirements: Default::default(),
             output_tables_map: Default::default(),
             used_sources: Default::default(),
             processors_list: Default::default(),
@@ -260,7 +263,14 @@ fn select_to_pipeline(
     let gen_selection_name = format!("select--{}", query_ctx.get_next_processor_id());
     let (gen_product_name, product_output_port) = output_node;
 
+    let mut replay_requirements = Vec::new();
     for (source_name, processor_name, processor_port) in input_nodes {
+        if let Some(requirements) = query_ctx
+            .replay_requirements
+            .get(&(pipeline_idx, source_name.clone()))
+        {
+            replay_requirements.extend(requirements.iter().cloned());
+        }
         if let Some(table_info) = query_ctx
             .pipeline_map
             .get(&(pipeline_idx, source_name.clone()))
@@ -291,6 +301,7 @@ fn select_to_pipeline(
         query_ctx.runtime.clone(),
     );
 
+    replay_requirements.push(aggregation.replay_requirement());
     pipeline.add_processor(Box::new(aggregation), gen_agg_name.clone());
 
     // Where clause
@@ -311,6 +322,12 @@ fn select_to_pipeline(
             query_ctx.udfs.clone(),
             query_ctx.runtime.clone(),
         );
+        replay_requirements.push(selection.replay_requirement());
+        if !membership_columns.is_empty() {
+            for requirement in &replay_requirements {
+                requirement.require();
+            }
+        }
 
         pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
 
@@ -358,6 +375,10 @@ fn select_to_pipeline(
         );
     }
 
+    query_ctx.replay_requirements.insert(
+        (pipeline_idx, table_info.name.0.clone()),
+        replay_requirements,
+    );
     query_ctx.pipeline_map.insert(
         (pipeline_idx, table_info.name.0.to_string()),
         OutputNodeInfo {
@@ -479,6 +500,15 @@ fn set_to_pipeline(
 
     let mut gen_set_name = format!("set_{}", query_ctx.get_next_processor_id());
 
+    let mut replay_requirements = Vec::new();
+    for name in [&gen_left_set_name, &gen_right_set_name] {
+        if let Some(requirements) = query_ctx
+            .replay_requirements
+            .get(&(pipeline_idx, name.clone()))
+        {
+            replay_requirements.extend(requirements.iter().cloned());
+        }
+    }
     let left_pipeline_output_node = query_ctx
         .pipeline_map
         .get(&(pipeline_idx, gen_left_set_name))
@@ -523,6 +553,10 @@ fn set_to_pipeline(
         query_ctx.output_tables_map.remove_entry(table_name);
     }
 
+    query_ctx.replay_requirements.insert(
+        (pipeline_idx, table_info.name.0.clone()),
+        replay_requirements,
+    );
     query_ctx.pipeline_map.insert(
         (pipeline_idx, table_info.name.0.to_string()),
         OutputNodeInfo {

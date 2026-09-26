@@ -421,6 +421,117 @@ fn qualified_operands_and_filtered_inner_rows_use_their_own_schemas() {
 }
 
 #[test]
+fn outer_cte_membership_uses_the_visible_relation_name_or_alias() {
+    for subquery in ["SELECT c.value FROM c", "SELECT x.value FROM c AS x"] {
+        let mut pipeline = Pipeline::two_tables(&format!(
+            "WITH c AS (SELECT value FROM inner_rows) \
+             SELECT * FROM outer_rows WHERE value IN ({subquery})"
+        ));
+        let seven = outer(1, Field::Int(7));
+        let nine = outer(2, Field::Int(9));
+        pipeline.feed(
+            "outer_rows",
+            Operation::BatchInsert {
+                new: vec![seven.clone(), nine.clone(), outer(3, Field::Null)],
+            },
+        );
+        pipeline.assert_rows(vec![]);
+        pipeline.feed("inner_rows", insert(inner(Field::Int(7))));
+        pipeline.assert_rows(vec![seven]);
+        pipeline.feed(
+            "inner_rows",
+            Operation::Update {
+                old: inner(Field::Int(7)),
+                new: inner(Field::Int(9)),
+            },
+        );
+        pipeline.assert_rows(vec![nine]);
+        pipeline.feed("inner_rows", delete(inner(Field::Int(9))));
+        pipeline.assert_rows(vec![]);
+        assert_eq!(
+            pipeline
+                .schema
+                .fields
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect::<Vec<_>>(),
+            ["id", "value"]
+        );
+    }
+}
+
+#[test]
+fn cte_membership_does_not_expose_original_or_hidden_qualifiers() {
+    for subquery in [
+        "SELECT inner_rows.value FROM c",
+        "SELECT c.value FROM c AS x",
+        "SELECT inner_rows.value FROM c AS x",
+    ] {
+        let sql = format!(
+            "WITH c AS (SELECT value FROM inner_rows) \
+             SELECT * FROM outer_rows WHERE value IN ({subquery})"
+        );
+        let result = Pipeline::try_new(
+            &sql,
+            vec![
+                ("outer_rows", table_schema("outer_rows", true)),
+                ("inner_rows", table_schema("inner_rows", false)),
+            ],
+        );
+        assert!(
+            result.is_err(),
+            "CTE accepted an out-of-scope qualifier: {subquery}"
+        );
+    }
+}
+
+#[test]
+fn volatile_inner_filters_are_rejected_including_cte_dependencies() {
+    use dozer_sql_expression::sqlparser::{dialect::DozerDialect, parser::Parser};
+
+    for sql in [
+        "SELECT * FROM outer_rows WHERE value IN \
+         (SELECT value FROM inner_rows WHERE NOW() IS NOT NULL)",
+        "WITH c AS (SELECT value FROM inner_rows WHERE NOW() IS NOT NULL) \
+         SELECT * FROM outer_rows WHERE value IN (SELECT c.value FROM c)",
+        "WITH c AS (SELECT value FROM inner_rows WHERE NOW() IS NOT NULL), \
+         d AS (SELECT c.value FROM c) \
+         SELECT * FROM outer_rows WHERE value IN (SELECT d.value FROM d)",
+        "WITH c AS (SELECT NOW() AS value FROM inner_rows) \
+         SELECT * FROM outer_rows WHERE value IN (SELECT c.value FROM c)",
+        "SELECT * FROM outer_rows WHERE \
+         value IN (SELECT value FROM inner_rows) AND NOW() IS NOT NULL",
+    ] {
+        Parser::parse_sql(&DozerDialect {}, sql)
+            .unwrap_or_else(|error| panic!("test must reach planner validation: {sql}: {error}"));
+        let result = Pipeline::try_new(
+            sql,
+            vec![
+                ("outer_rows", table_schema("outer_rows", true)),
+                ("inner_rows", table_schema("inner_rows", false)),
+            ],
+        );
+        assert!(
+            result.is_err(),
+            "volatile membership input was accepted: {sql}"
+        );
+    }
+}
+
+#[test]
+fn ordinary_queries_keep_volatile_filters_without_membership() {
+    let mut pipeline = Pipeline::new(
+        "SELECT * FROM outer_rows WHERE NOW() IS NOT NULL",
+        vec![("outer_rows", table_schema("outer_rows", true))],
+    );
+    let row = outer(1, Field::Int(7));
+    pipeline.feed("outer_rows", insert(row.clone()));
+    pipeline.assert_rows(vec![row.clone()]);
+    pipeline.feed("outer_rows", delete(row));
+    pipeline.assert_rows(vec![]);
+}
+
+#[test]
 fn membership_inside_a_compound_predicate_keeps_the_other_branch() {
     let mut pipeline = Pipeline::two_tables(
         "SELECT * FROM outer_rows WHERE id = 99 OR \
