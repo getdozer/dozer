@@ -8,7 +8,7 @@ use dozer_types::models::udf_config::{UdfConfig, UdfType};
 use dozer_types::types::FieldType;
 use dozer_types::{
     ordered_float::OrderedFloat,
-    types::{Field, FieldDefinition, Schema, SourceDefinition},
+    types::{Field, Schema, SourceDefinition},
 };
 use sqlparser::ast::{
     BinaryOperator as SqlBinaryOperator, DataType, DateTimeField, Expr as SqlExpr, Expr, Function,
@@ -211,63 +211,27 @@ impl ExpressionBuilder {
             }
         };
 
-        let matching_by_field: Vec<(usize, &FieldDefinition)> = schema
-            .fields
-            .iter()
-            .enumerate()
-            .filter(|(_idx, f)| &f.name == src_field)
-            .collect();
-
-        match matching_by_field.len() {
-            1 => Ok(Expression::Column {
-                index: matching_by_field[0].0,
-            }),
-            _ => match src_table_or_alias {
-                None => Err(Error::InvalidIdent(ident.to_vec())),
-                Some(src_table_or_alias) => {
-                    let matching_by_table_or_alias: Vec<(usize, &FieldDefinition)> =
-                        matching_by_field
-                            .into_iter()
-                            .filter(|(_idx, field)| match &field.source {
-                                SourceDefinition::Alias { name } => name == src_table_or_alias,
-                                SourceDefinition::Table {
-                                    name,
-                                    connection: _,
-                                } => name == src_table_or_alias,
-                                _ => false,
-                            })
-                            .collect();
-
-                    match matching_by_table_or_alias.len() {
-                        1 => Ok(Expression::Column {
-                            index: matching_by_table_or_alias[0].0,
-                        }),
-                        _ => match src_connection {
-                            None => Err(Error::InvalidIdent(ident.to_vec())),
-                            Some(src_connection) => {
-                                let matching_by_connection: Vec<(usize, &FieldDefinition)> =
-                                    matching_by_table_or_alias
-                                        .into_iter()
-                                        .filter(|(_idx, field)| match &field.source {
-                                            SourceDefinition::Table {
-                                                name: _,
-                                                connection,
-                                            } => connection == src_connection,
-                                            _ => false,
-                                        })
-                                        .collect();
-
-                                match matching_by_connection.len() {
-                                    1 => Ok(Expression::Column {
-                                        index: matching_by_connection[0].0,
-                                    }),
-                                    _ => Err(Error::InvalidIdent(ident.to_vec())),
-                                }
-                            }
-                        },
-                    }
-                }
-            },
+        let mut matching = schema.fields.iter().enumerate().filter(|(_, field)| {
+            if &field.name != src_field {
+                return false;
+            }
+            match (src_table_or_alias, src_connection, &field.source) {
+                (None, None, _) => true,
+                (Some(table), None, SourceDefinition::Alias { name }) => name == table,
+                (
+                    Some(table),
+                    connection,
+                    SourceDefinition::Table {
+                        name,
+                        connection: source,
+                    },
+                ) => name == table && connection.map_or(true, |connection| source == connection),
+                _ => false,
+            }
+        });
+        match (matching.next(), matching.next()) {
+            (Some((index, _)), None) => Ok(Expression::Column { index }),
+            _ => Err(Error::InvalidIdent(ident.to_vec())),
         }
     }
 
@@ -1061,4 +1025,105 @@ pub fn extend_schema_source_def(schema: &Schema, name: &NameOrAlias) -> Schema {
     output_schema.fields = fields;
 
     output_schema
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dozer_types::types::FieldDefinition;
+
+    fn resolve(schema: &Schema, name: &str) -> Result<Expression, Error> {
+        let ident = name.split('.').map(Ident::new).collect::<Vec<_>>();
+        ExpressionBuilder::parse_sql_column(&ident, schema)
+    }
+
+    fn schema_with_sources(sources: Vec<SourceDefinition>) -> Schema {
+        Schema {
+            fields: sources
+                .into_iter()
+                .map(|source| FieldDefinition::new("id".into(), FieldType::Int, false, source))
+                .collect(),
+            primary_index: vec![],
+        }
+    }
+
+    #[test]
+    fn unique_column_still_requires_matching_qualifiers() {
+        let schema = schema_with_sources(vec![SourceDefinition::Table {
+            connection: "source".into(),
+            name: "inner_rows".into(),
+        }]);
+        for name in ["id", "inner_rows.id", "source.inner_rows.id"] {
+            assert_eq!(
+                resolve(&schema, name).unwrap(),
+                Expression::Column { index: 0 }
+            );
+        }
+        for name in [
+            "outer_rows.id",
+            "other.inner_rows.id",
+            "source.outer_rows.id",
+            "extra.source.inner_rows.id",
+        ] {
+            assert!(
+                matches!(resolve(&schema, name), Err(Error::InvalidIdent(_))),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn aliases_and_unqualified_sources_do_not_accept_outer_qualifiers() {
+        let alias = schema_with_sources(vec![SourceDefinition::Alias {
+            name: "inner_alias".into(),
+        }]);
+        for name in ["id", "inner_alias.id"] {
+            assert_eq!(
+                resolve(&alias, name).unwrap(),
+                Expression::Column { index: 0 }
+            );
+        }
+        for name in ["outer_alias.id", "source.inner_alias.id"] {
+            assert!(matches!(resolve(&alias, name), Err(Error::InvalidIdent(_))));
+        }
+        let dynamic = schema_with_sources(vec![SourceDefinition::Dynamic]);
+        assert_eq!(
+            resolve(&dynamic, "id").unwrap(),
+            Expression::Column { index: 0 }
+        );
+        assert!(matches!(
+            resolve(&dynamic, "outer_rows.id"),
+            Err(Error::InvalidIdent(_))
+        ));
+    }
+
+    #[test]
+    fn all_qualifiers_are_applied_before_checking_ambiguity() {
+        let schema = schema_with_sources(vec![
+            SourceDefinition::Table {
+                connection: "first".into(),
+                name: "rows".into(),
+            },
+            SourceDefinition::Table {
+                connection: "second".into(),
+                name: "rows".into(),
+            },
+            SourceDefinition::Table {
+                connection: "first".into(),
+                name: "other".into(),
+            },
+        ]);
+        for name in ["id", "rows.id", "third.rows.id", "second.other.id"] {
+            assert!(
+                matches!(resolve(&schema, name), Err(Error::InvalidIdent(_))),
+                "{name}"
+            );
+        }
+        for (name, index) in [("first.rows.id", 0), ("second.rows.id", 1), ("other.id", 2)] {
+            assert_eq!(
+                resolve(&schema, name).unwrap(),
+                Expression::Column { index }
+            );
+        }
+    }
 }

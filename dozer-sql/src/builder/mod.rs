@@ -1,6 +1,7 @@
 use crate::aggregation::factory::AggregationProcessorFactory;
 use crate::builder::PipelineError::InvalidQuery;
 use crate::errors::PipelineError;
+use crate::projection::trim::TrimMembershipColumns;
 use crate::selection::factory::SelectionProcessorFactory;
 use dozer_core::app::AppPipeline;
 use dozer_core::node::PortHandle;
@@ -293,7 +294,17 @@ fn select_to_pipeline(
     pipeline.add_processor(Box::new(aggregation), gen_agg_name.clone());
 
     // Where clause
-    if let Some(selection) = select.selection {
+    if let Some(mut selection) = select.selection {
+        let (input, membership_columns) = membership::plan(
+            &mut selection,
+            OutputNodeInfo {
+                node: gen_product_name,
+                port: product_output_port,
+            },
+            pipeline,
+            query_ctx,
+            pipeline_idx,
+        )?;
         let selection = SelectionProcessorFactory::new(
             gen_selection_name.clone(),
             selection,
@@ -304,14 +315,36 @@ fn select_to_pipeline(
         pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
 
         pipeline.connect_nodes(
-            gen_product_name,
-            product_output_port,
+            input.node,
+            input.port,
             gen_selection_name.clone(),
             DEFAULT_PORT_HANDLE,
         );
 
+        let selection_output = if membership_columns.is_empty() {
+            gen_selection_name
+        } else {
+            let name = format!(
+                "membership_projection--{}",
+                query_ctx.get_next_processor_id()
+            );
+            pipeline.add_processor(
+                Box::new(TrimMembershipColumns {
+                    id: name.clone(),
+                    columns: membership_columns,
+                }),
+                name.clone(),
+            );
+            pipeline.connect_nodes(
+                gen_selection_name,
+                DEFAULT_PORT_HANDLE,
+                name.clone(),
+                DEFAULT_PORT_HANDLE,
+            );
+            name
+        };
         pipeline.connect_nodes(
-            gen_selection_name,
+            selection_output,
             DEFAULT_PORT_HANDLE,
             gen_agg_name.clone(),
             DEFAULT_PORT_HANDLE,
@@ -561,6 +594,7 @@ struct ConnectionInfo {
 mod common;
 mod from;
 mod join;
+mod membership;
 mod table_operator;
 
 pub use common::string_from_sql_object_name;
