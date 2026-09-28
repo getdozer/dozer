@@ -1,8 +1,0 @@
-[build]
-rustflags = ["--cfg", "tokio_unstable"]
-
-[profile.test]
-lto = "off"
-
-[target.aarch64-apple-darwin]
-rustflags = ["-C", "link-arg=-ld_classic"]

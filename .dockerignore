@@ -1,5 +1,0 @@
-db/
-dozer-sql/data
-**/**/target/
-target/
-!target/release/dozer
