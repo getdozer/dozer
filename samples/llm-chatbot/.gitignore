@@ -1,0 +1,5 @@
+.dozer/
+.env
+__pycache__/
+*.pyc
+qdrant_storage/

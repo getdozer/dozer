@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  # ------------------------------------------------------------------
+  # Postgres: raw operational datasets (customer profiles, transactions
+  # and the credit-card product catalog) that Dozer ingests.
+  # ------------------------------------------------------------------
+  postgres:
+    image: postgres:16
+    container_name: bank-postgres
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
+      - -c
+      - hba_file=/etc/dozer/pg_hba.conf
+    environment:
+      POSTGRES_DB: bank
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - ./seed/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./pg_hba.conf:/etc/dozer/pg_hba.conf:ro
+    ports:
+      - '5436:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d bank']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ------------------------------------------------------------------
+  # Qdrant: vector store for the credit-card product catalog.
+  # The chatbot embeds product descriptions into it and retrieves the
+  # most relevant products as context for the LLM (RAG).
+  # ------------------------------------------------------------------
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: bank-qdrant
+    ports:
+      - '6333:6333'
+      - '6334:6334'
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    healthcheck:
+      test: ['CMD-SHELL', 'bash -c ":> /dev/tcp/127.0.0.1/6333" 2>/dev/null || exit 1']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ------------------------------------------------------------------
+  # Dozer: ingests customers + transactions + products from Postgres,
+  # joins them in real time (see dozer-config.yaml) and serves the
+  # unified customer profile over REST (:8080) and gRPC (:50051).
+  # ------------------------------------------------------------------
+  dozer:
+    image: getdozer/dozer:latest
+    platform: linux/amd64
+    container_name: bank-dozer
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /usr/dozer
+    volumes:
+      - .:/usr/dozer
+    ports:
+      - '8080:8080'
+      - '50051:50051'
+    command: ['dozer', 'run']
+
+  # ------------------------------------------------------------------
+  # Chatbot: Langchain app that
+  #   1. indexes the product catalog (from Dozer REST) into Qdrant,
+  #   2. fetches the unified customer profile per request,
+  #   3. retrieves matching credit-card products from Qdrant,
+  #   4. calls the LLM (OpenAI) with all of it as context.
+  # Runs fully offline (mock LLM + fake embeddings) when OPENAI_API_KEY
+  # is not set, so it works in CI without secrets.
+  # ------------------------------------------------------------------
+  chatbot:
+    build: ./chatbot
+    container_name: bank-chatbot
+    depends_on:
+      - dozer
+      - qdrant
+    environment:
+      DOZER_REST_URL: http://dozer:8080
+      QDRANT_URL: http://qdrant:6333
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+    ports:
+      - '8000:8000'
+    command: ['uvicorn', 'main:app', '--host', '0.0.0.0', '--port', '8000']
+
+volumes:
+  qdrant_storage:

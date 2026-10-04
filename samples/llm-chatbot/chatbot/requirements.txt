@@ -1,0 +1,8 @@
+langchain>=0.3,<0.4
+langchain-openai>=0.2,<0.4
+langchain-community>=0.3,<0.4
+qdrant-client>=1.9
+requests>=2.31
+fastapi>=0.110
+uvicorn>=0.29
+pydantic>=2.6

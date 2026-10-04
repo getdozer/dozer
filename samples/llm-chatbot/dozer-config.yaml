@@ -1,0 +1,102 @@
+# Dozer configuration for the LLM chatbot sample.
+#
+# Dozer sources three Postgres tables (customers, transactions, products),
+# joins them in real time into a unified customer profile and exposes
+# everything as low-latency REST/gRPC endpoints on :8080 / :50051.
+app_name: bank-chatbot
+version: 1
+
+connections:
+  - name: bank_conn
+    config: !Postgres
+      user: postgres
+      password: postgres
+      host: postgres
+      port: 5432
+      database: bank
+
+sources:
+  - name: customers
+    table_name: customers
+    connection: bank_conn
+
+  - name: transactions
+    table_name: transactions
+    connection: bank_conn
+
+  - name: products
+    table_name: products
+    connection: bank_conn
+
+sql: |
+  -- Unified customer profile: demographics + credit standing joined with
+  -- aggregated spending behaviour. Dozer keeps this continuously up to
+  -- date as new transactions land in Postgres.
+  select
+    c.customer_id,
+    c.first_name,
+    c.last_name,
+    c.email,
+    c.city,
+    c.segment,
+    c.credit_score,
+    count(t.txn_id) as transaction_count,
+    sum(t.amount) as total_spend,
+    max(t.amount) as largest_transaction,
+    max(t.txn_date) as last_transaction_date
+  into customer_profile
+  from customers c
+  inner join transactions t on t.customer_id = c.customer_id
+  group by
+    c.customer_id,
+    c.first_name,
+    c.last_name,
+    c.email,
+    c.city,
+    c.segment,
+    c.credit_score;
+
+endpoints:
+  - name: customers
+    path: /customers
+    table_name: customers
+    index:
+      primary_key:
+        - customer_id
+
+  - name: transactions
+    path: /transactions
+    table_name: transactions
+    index:
+      primary_key:
+        - txn_id
+      secondary:
+        create:
+          - !SortedInverted
+            fields:
+              - customer_id
+              - amount
+          - !SortedInverted
+            fields:
+              - customer_id
+              - txn_date
+
+  - name: products
+    path: /products
+    table_name: products
+    index:
+      primary_key:
+        - product_id
+
+  - name: customer_profile
+    path: /profile
+    table_name: customer_profile
+    index:
+      primary_key:
+        - customer_id
+        - first_name
+        - last_name
+        - email
+        - city
+        - segment
+        - credit_score
