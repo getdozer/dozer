@@ -63,7 +63,11 @@ pub struct Config {
     pub telemetry: TelemetryConfig,
 
     /// UDF specific configuration (eg. !Onnx)
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "super::udf_config::deserialize_udfs"
+    )]
     pub udfs: Vec<UdfConfig>,
 
     /// Lambda functions.
