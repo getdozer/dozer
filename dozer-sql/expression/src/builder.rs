@@ -573,6 +573,25 @@ impl ExpressionBuilder {
                         Err(Error::JavaScriptNotEnabled)
                     }
                 }
+                UdfType::Wasm(config) => {
+                    #[cfg(feature = "wasm")]
+                    {
+                        self.parse_wasm_udf(
+                            function_name.clone(),
+                            config,
+                            sql_function,
+                            schema,
+                            udfs,
+                        )
+                        .await
+                    }
+
+                    #[cfg(not(feature = "wasm"))]
+                    {
+                        let _ = config;
+                        Err(Error::WasmNotEnabled)
+                    }
+                }
             };
         }
 
@@ -993,6 +1012,62 @@ impl ExpressionBuilder {
         )
         .await?;
         Ok(Expression::JavaScriptUdf(udf))
+    }
+
+    #[cfg(feature = "wasm")]
+    async fn parse_wasm_udf(
+        &mut self,
+        name: String,
+        config: &dozer_types::models::udf_config::WasmConfig,
+        function: &Function,
+        schema: &Schema,
+        udfs: &[UdfConfig],
+    ) -> Result<Expression, Error> {
+        let mut args = vec![];
+        for argument in &function.args {
+            let arg = self
+                .parse_sql_function_arg(false, argument, schema, udfs)
+                .await?;
+            args.push(arg);
+        }
+
+        let module = crate::wasm::parse_module(&config.path)?;
+        let signature = module
+            .info
+            .exported_function_signature(&name)
+            .map_err(crate::wasm::Error::Module)?;
+
+        if args.len() != signature.params.len() {
+            return Err(Error::InvalidNumberOfArguments {
+                function_name: name.clone(),
+                expected: signature.params.len()..signature.params.len() + 1,
+                actual: args.len(),
+            });
+        }
+        for (index, (arg, param)) in args.iter().zip(signature.params.iter()).enumerate() {
+            let actual = arg.get_type(schema)?.return_type;
+            let expected = match param {
+                crate::wasm::ValType::I32 => vec![
+                    FieldType::Int,
+                    FieldType::UInt,
+                    FieldType::Float,
+                    FieldType::Boolean,
+                ],
+                crate::wasm::ValType::I64 => vec![FieldType::Int, FieldType::UInt],
+                _ => vec![FieldType::Float, FieldType::Int, FieldType::UInt],
+            };
+            if !expected.contains(&actual) {
+                return Err(Error::InvalidFunctionArgumentType {
+                    function_name: name.clone(),
+                    argument_index: index,
+                    expected,
+                    actual,
+                });
+            }
+        }
+
+        let udf = crate::wasm::Udf::new(self.runtime.clone(), name, module, signature, args).await?;
+        Ok(Expression::WasmUdf(udf))
     }
 
     async fn parse_sql_in_list_operator(
