@@ -1,0 +1,6 @@
+product_id,name,annual_fee_cents,rewards,eligibility,additional_details
+travel-card,Travel Signature Card,9500,"3x points on flights and hotels; $100 annual travel credit","Good credit; no missed payments in the last 12 months","Includes travel accident insurance and no foreign transaction fees"
+cashback-card,Everyday Cashback Card,0,"3% groceries, 2% fuel, 1% everything else","Standard credit review","Rewards post automatically each statement cycle"
+secured-card,Credit Builder Secured Card,3900,"1% cashback after six on-time payments","Available during credit building; security deposit required","Graduates to an unsecured card after a payment review"
+business-card,Business Flex Card,12500,"2x points on software and advertising","Registered business; business credit review","Includes employee cards with individual spending limits"
+student-card,Campus Starter Card,0,"1% cashback and no late fee on first late payment","Enrolled student; income or cosigner review","Includes free monthly credit-score tracking"

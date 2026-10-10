@@ -1,0 +1,7 @@
+.chroma/
+.dozer/
+.venv/
+__pycache__/
+*.py[cod]
+*.dist-info/
+*.egg-info/

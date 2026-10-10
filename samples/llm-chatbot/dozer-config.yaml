@@ -1,0 +1,78 @@
+app_name: llm-credit-card-chatbot
+version: 1
+home_dir: ./.dozer
+
+api:
+  rest:
+    enabled: true
+    host: 0.0.0.0
+    port: 8080
+    cors: true
+  grpc:
+    enabled: true
+    host: 0.0.0.0
+    port: 50051
+    cors: true
+
+connections:
+  - name: bank_postgres
+    config: !Postgres
+      user: postgres
+      password: postgres
+      host: localhost
+      port: 5432
+      database: dozer_llm_chatbot
+      schema: public
+
+sources:
+  - name: customers
+    table_name: customers
+    connection: bank_postgres
+    columns:
+      - id
+      - full_name
+      - email
+      - city
+      - state
+      - preferred_language
+      - risk_tier
+  - name: transactions
+    table_name: transactions
+    connection: bank_postgres
+    columns:
+      - id
+      - customer_id
+      - card_id
+      - merchant
+      - category
+      - amount_cents
+      - transaction_date
+  - name: credit_cards
+    table_name: credit_cards
+    connection: bank_postgres
+    columns:
+      - id
+      - customer_id
+      - product_id
+      - last_four
+      - status
+
+endpoints:
+  - name: customers
+    path: /customers
+    sql: select * from customers where 1=1;
+    index:
+      primary_key:
+        - id
+  - name: transactions
+    path: /transactions
+    sql: select * from transactions where 1=1;
+    index:
+      primary_key:
+        - id
+  - name: credit_cards
+    path: /credit_cards
+    sql: select * from credit_cards where 1=1;
+    index:
+      primary_key:
+        - id
