@@ -1,0 +1,18 @@
+[project]
+name = "llm-chatbot-sample"
+version = "0.1.0"
+description = "Dozer, LangChain, OpenAI, and Chroma credit-card chatbot sample"
+requires-python = ">=3.10"
+dependencies = [
+  "chromadb>=0.5,<0.13",
+  "langchain>=0.3,<0.4",
+  "langchain-chroma>=0.1,<0.4",
+  "langchain-openai>=0.2,<0.4",
+  "requests>=2.32,<3",
+]
+
+[project.scripts]
+llm-chatbot = "llm_chatbot.chatbot:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
