@@ -1,0 +1,19 @@
+transaction_id,customer_id,date,amount,category,merchant
+TXN_1001,CUST_001,2024-03-01,1250.00,travel,Delta Airlines
+TXN_1002,CUST_001,2024-03-05,480.00,travel,Marriott Hotels
+TXN_1003,CUST_001,2024-03-12,210.00,dining,Le Bernardin
+TXN_1004,CUST_001,2024-03-18,2400.00,travel,Emirates
+TXN_1005,CUST_001,2024-03-22,185.50,dining,Nobu
+TXN_1006,CUST_002,2024-03-02,320.00,groceries,Whole Foods
+TXN_1007,CUST_002,2024-03-08,195.40,groceries,Costco
+TXN_1008,CUST_002,2024-03-14,65.00,gas,Shell
+TXN_1009,CUST_002,2024-03-21,410.00,groceries,Trader Joes
+TXN_1010,CUST_002,2024-03-28,85.00,dining,Local Diner
+TXN_1011,CUST_003,2024-03-04,45.00,dining,Chipotle
+TXN_1012,CUST_003,2024-03-10,35.00,entertainment,Spotify
+TXN_1013,CUST_003,2024-03-16,80.00,groceries,Aldi
+TXN_1014,CUST_003,2024-03-25,25.00,gas,Exxon
+TXN_1015,CUST_004,2024-03-03,3200.00,business_supplies,Office Max
+TXN_1016,CUST_004,2024-03-11,850.00,dining,Steakhouse
+TXN_1017,CUST_004,2024-03-19,1900.00,travel,United Airlines
+TXN_1018,CUST_004,2024-03-27,1450.00,advertising,Google Ads

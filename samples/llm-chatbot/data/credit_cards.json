@@ -1,0 +1,46 @@
+[
+  {
+    "card_id": "CARD_AERO_ELITE",
+    "name": "Apex AeroElite Global Travel Card",
+    "target_audience": "Frequent international and domestic travelers, high spenders",
+    "minimum_credit_score": 740,
+    "annual_fee": 495,
+    "rewards_structure": "5x points on flights and hotels booked directly, 3x on fine dining, 1x on all other purchases.",
+    "perks": "Priority Pass airport lounge access, $300 annual airline incidental fee credit, zero foreign transaction fees, premium travel and baggage insurance.",
+    "apr": "19.99% - 26.99% variable",
+    "introductory_offer": "75,000 bonus points after spending $4,000 within the first 3 months."
+  },
+  {
+    "card_id": "CARD_EVERYDAY_SAVER",
+    "name": "Everyday CashSaver Preferred",
+    "target_audience": "Families, household shoppers, everyday grocery and gas spenders",
+    "minimum_credit_score": 670,
+    "annual_fee": 95,
+    "rewards_structure": "6% cash back on US supermarkets (up to $6,000/year), 3% cash back on gas and transit, 1% on other purchases.",
+    "perks": "Annual streaming subscription credit of $84, extended warranty protection, purchase security.",
+    "apr": "17.49% - 24.49% variable",
+    "introductory_offer": "0% Intro APR on purchases and balance transfers for 12 months, plus $250 statement credit after spending $1,000 in first 3 months."
+  },
+  {
+    "card_id": "CARD_STEPPING_STONE",
+    "name": "Nova Journey Student & Builder Card",
+    "target_audience": "Students, young professionals, building or rebuilding credit history",
+    "minimum_credit_score": 600,
+    "annual_fee": 0,
+    "rewards_structure": "1.5% unlimited cash back on all eligible purchases, with 2x rewards on streaming services and takeout dining.",
+    "perks": "No security deposit required for approved applicants, credit score simulator tool, free monthly FICO score tracking, automatic credit limit review after 6 months.",
+    "apr": "21.99% - 28.99% variable",
+    "introductory_offer": "$50 cash bonus upon qualifying on-time payments for the first 6 consecutive months."
+  },
+  {
+    "card_id": "CARD_BIZ_ACCEL",
+    "name": "Commercial Advantage Business Card",
+    "target_audience": "Small business owners, enterprise operators, entrepreneurs",
+    "minimum_credit_score": 720,
+    "annual_fee": 195,
+    "rewards_structure": "4x points on office supplies, telecom, and digital advertising; 2x on dining and gas; 1x baseline.",
+    "perks": "Free employee cards with individual spending limits, QuickBooks and Xero automated receipt reconciliation, primary rental car insurance for business travel.",
+    "apr": "16.99% - 23.99% variable",
+    "introductory_offer": "100,000 points after spending $10,000 in the first 3 months of business operations."
+  }
+]
