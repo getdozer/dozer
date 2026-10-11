@@ -1,0 +1,5 @@
+customer_id,name,age,occupation,annual_income,credit_score,loyalty_tier
+CUST_001,Elena Rostova,34,Software Executive,165000,785,Platinum
+CUST_002,Marcus Vance,42,High School Principal,82000,695,Gold
+CUST_003,Amina Patel,24,Graduate Student,32000,640,Silver
+CUST_004,David Kim,51,Small Business Owner,210000,810,Platinum

@@ -1,0 +1,56 @@
+app_name: bank_personalization
+version: 1
+
+connections:
+  - config: !LocalStorage
+      details:
+        path: ./data
+    name: bank_records
+
+sources:
+  - name: customers
+    table_name: customers
+    connection: bank_records
+  - name: transactions
+    table_name: transactions
+    connection: bank_records
+
+sql: |
+  SELECT 
+    c.customer_id,
+    c.name,
+    c.age,
+    c.occupation,
+    c.annual_income,
+    c.credit_score,
+    c.loyalty_tier,
+    COUNT(t.transaction_id) AS total_transactions,
+    CAST(COALESCE(SUM(t.amount), 0) AS FLOAT) AS total_spend_90d,
+    CAST(COALESCE(SUM(CASE WHEN t.category = 'travel' THEN t.amount ELSE 0 END), 0) AS FLOAT) AS travel_spend_90d,
+    CAST(COALESCE(SUM(CASE WHEN t.category = 'dining' THEN t.amount ELSE 0 END), 0) AS FLOAT) AS dining_spend_90d,
+    CAST(COALESCE(SUM(CASE WHEN t.category = 'groceries' THEN t.amount ELSE 0 END), 0) AS FLOAT) AS grocery_spend_90d,
+    CAST(COALESCE(SUM(CASE WHEN t.category = 'business_supplies' OR t.category = 'advertising' THEN t.amount ELSE 0 END), 0) AS FLOAT) AS business_spend_90d
+  INTO customer_unified_profiles
+  FROM customers c
+  LEFT JOIN transactions t ON c.customer_id = t.customer_id
+  GROUP BY 
+    c.customer_id,
+    c.name,
+    c.age,
+    c.occupation,
+    c.annual_income,
+    c.credit_score,
+    c.loyalty_tier;
+
+endpoints:
+  - name: customer_profiles
+    path: /customer_profiles
+    table_name: customer_unified_profiles
+    index:
+      primary_key:
+        - customer_id
+
+api:
+  rest:
+    port: 8080
+    host: 0.0.0.0
