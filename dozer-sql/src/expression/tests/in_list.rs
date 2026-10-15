@@ -83,4 +83,10 @@ fn test_not_in_list() {
         vec![Field::Int(42)],
     );
     assert_eq!(f, Field::Boolean(false));
+
+    let f = run_fct("SELECT 42 IN (1.5, 42.0)", Schema::default(), vec![]);
+    assert_eq!(f, Field::Boolean(true));
+
+    let f = run_fct("SELECT 42 NOT IN (1.5, 42.0)", Schema::default(), vec![]);
+    assert_eq!(f, Field::Boolean(false));
 }

@@ -2,11 +2,16 @@ use crate::aggregation::factory::AggregationProcessorFactory;
 use crate::builder::PipelineError::InvalidQuery;
 use crate::errors::PipelineError;
 use crate::selection::factory::SelectionProcessorFactory;
+use crate::selection::in_subquery::{
+    InSubqueryProcessorFactory, LEFT_IN_SUBQUERY_PORT, RIGHT_IN_SUBQUERY_PORT,
+};
 use dozer_core::app::AppPipeline;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql_expression::builder::{ExpressionBuilder, NameOrAlias};
-use dozer_sql_expression::sqlparser::ast::{SetOperator, SetQuantifier, TableFactor};
+use dozer_sql_expression::sqlparser::ast::{
+    BinaryOperator, Expr as SqlExpr, SetOperator, SetQuantifier, TableFactor,
+};
 use dozer_types::models::udf_config::UdfConfig;
 
 use dozer_sql_expression::sqlparser::{
@@ -293,37 +298,27 @@ fn select_to_pipeline(
     pipeline.add_processor(Box::new(aggregation), gen_agg_name.clone());
 
     // Where clause
-    if let Some(selection) = select.selection {
-        let selection = SelectionProcessorFactory::new(
-            gen_selection_name.clone(),
+    let (aggregation_input_node, aggregation_input_port) = if let Some(selection) = select.selection
+    {
+        insert_selection_to_pipeline(
             selection,
-            query_ctx.udfs.clone(),
-            query_ctx.runtime.clone(),
-        );
-
-        pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
-
-        pipeline.connect_nodes(
             gen_product_name,
             product_output_port,
-            gen_selection_name.clone(),
-            DEFAULT_PORT_HANDLE,
-        );
-
-        pipeline.connect_nodes(
             gen_selection_name,
-            DEFAULT_PORT_HANDLE,
-            gen_agg_name.clone(),
-            DEFAULT_PORT_HANDLE,
-        );
+            pipeline,
+            query_ctx,
+            pipeline_idx,
+        )?
     } else {
-        pipeline.connect_nodes(
-            gen_product_name,
-            product_output_port,
-            gen_agg_name.clone(),
-            DEFAULT_PORT_HANDLE,
-        );
-    }
+        (gen_product_name, product_output_port)
+    };
+
+    pipeline.connect_nodes(
+        aggregation_input_node,
+        aggregation_input_port,
+        gen_agg_name.clone(),
+        DEFAULT_PORT_HANDLE,
+    );
 
     query_ctx.pipeline_map.insert(
         (pipeline_idx, table_info.name.0.to_string()),
@@ -358,6 +353,134 @@ fn select_to_pipeline(
     }
 
     Ok(gen_agg_name)
+}
+
+fn contains_in_subquery(expr: &SqlExpr) -> bool {
+    match expr {
+        SqlExpr::InSubquery { .. } => true,
+        SqlExpr::Nested(inner) => contains_in_subquery(inner),
+        SqlExpr::BinaryOp {
+            left,
+            op: BinaryOperator::And,
+            right,
+        } => contains_in_subquery(left) || contains_in_subquery(right),
+        _ => false,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn insert_selection_to_pipeline(
+    selection: SqlExpr,
+    input_node: String,
+    input_port: PortHandle,
+    selection_node: String,
+    pipeline: &mut AppPipeline,
+    query_ctx: &mut QueryContext,
+    pipeline_idx: usize,
+) -> Result<(String, PortHandle), PipelineError> {
+    match selection {
+        SqlExpr::Nested(inner) if contains_in_subquery(&inner) => insert_selection_to_pipeline(
+            *inner,
+            input_node,
+            input_port,
+            selection_node,
+            pipeline,
+            query_ctx,
+            pipeline_idx,
+        ),
+        SqlExpr::BinaryOp {
+            left,
+            op: BinaryOperator::And,
+            right,
+        } if contains_in_subquery(&left) || contains_in_subquery(&right) => {
+            let (left_node, left_port) = insert_selection_to_pipeline(
+                *left,
+                input_node,
+                input_port,
+                selection_node,
+                pipeline,
+                query_ctx,
+                pipeline_idx,
+            )?;
+            let right_selection_node = format!("select--{}", query_ctx.get_next_processor_id());
+            insert_selection_to_pipeline(
+                *right,
+                left_node,
+                left_port,
+                right_selection_node,
+                pipeline,
+                query_ctx,
+                pipeline_idx,
+            )
+        }
+        SqlExpr::InSubquery {
+            expr,
+            subquery,
+            negated,
+        } => {
+            let subquery_name = format!("in_subquery_{}", query_ctx.get_next_processor_id());
+            query_to_pipeline(
+                TableInfo {
+                    name: NameOrAlias(subquery_name.clone(), None),
+                    override_name: None,
+                },
+                *subquery,
+                pipeline,
+                query_ctx,
+                pipeline_idx,
+                false,
+            )?;
+
+            let subquery_output = query_ctx
+                .pipeline_map
+                .get(&(pipeline_idx, subquery_name.clone()))
+                .ok_or_else(|| {
+                    PipelineError::InvalidQuery(format!(
+                        "Invalid IN subquery output: {subquery_name}"
+                    ))
+                })?
+                .clone();
+
+            let selection = InSubqueryProcessorFactory::new(
+                selection_node.clone(),
+                *expr,
+                negated,
+                query_ctx.udfs.clone(),
+                query_ctx.runtime.clone(),
+            );
+            pipeline.add_processor(Box::new(selection), selection_node.clone());
+            pipeline.connect_nodes(
+                input_node,
+                input_port,
+                selection_node.clone(),
+                LEFT_IN_SUBQUERY_PORT,
+            );
+            pipeline.connect_nodes(
+                subquery_output.node,
+                subquery_output.port,
+                selection_node.clone(),
+                RIGHT_IN_SUBQUERY_PORT,
+            );
+            Ok((selection_node, DEFAULT_PORT_HANDLE))
+        }
+        selection => {
+            let selection = SelectionProcessorFactory::new(
+                selection_node.clone(),
+                selection,
+                query_ctx.udfs.clone(),
+                query_ctx.runtime.clone(),
+            );
+
+            pipeline.add_processor(Box::new(selection), selection_node.clone());
+            pipeline.connect_nodes(
+                input_node,
+                input_port,
+                selection_node.clone(),
+                DEFAULT_PORT_HANDLE,
+            );
+            Ok((selection_node, DEFAULT_PORT_HANDLE))
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
