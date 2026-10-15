@@ -1,0 +1,6 @@
+customer_id,first_name,last_name,age,credit_score,income_band,annual_income_usd,segment,primary_goals,risk_tolerance
+CUST_001,Elena,Rostova,29,750,upper_middle,115000,Young Professional,International Travel and Airline Lounges,medium
+CUST_002,Marcus,Vance,22,610,starter,32000,Student,Build Credit and Low Fees,low
+CUST_003,Sarah,Jenkins,41,810,affluent,195000,Established Family,Groceries Cashback and Family Dining,low
+CUST_004,David,Chen,35,715,middle,82000,Tech Consultant,Dining Delivery and Gadget Protection,medium
+CUST_005,Amina,Diallo,52,790,high_net_worth,340000,Executive,Luxury Travel Concierge and High Rewards,high

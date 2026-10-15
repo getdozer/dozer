@@ -1,0 +1,6 @@
+langchain>=0.2.0
+langchain-core>=0.2.0
+langchain-community>=0.2.0
+requests>=2.31.0
+pyyaml>=6.0
+pytest>=8.0.0

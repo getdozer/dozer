@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  dozer:
+    image: getdozer/dozer:latest
+    working_dir: /app
+    volumes:
+      - ./:/app
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    command: ["run", "-c", "/app/dozer-config.yaml"]
+
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - IS_PERSISTENT=TRUE
