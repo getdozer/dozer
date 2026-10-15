@@ -209,3 +209,17 @@ from tbl;"#;
     //check if the result is ok
     assert!(result.is_ok());
 }
+
+#[test]
+fn test_in_subquery_pipeline() {
+    let sql = r#"SELECT a INTO C FROM B WHERE a IN (SELECT x FROM D) AND b > 1"#;
+    let runtime = create_test_runtime();
+    let result = statement_to_pipeline(
+        sql,
+        &mut AppPipeline::new_with_default_flags(),
+        None,
+        vec![],
+        runtime,
+    );
+    assert!(result.is_ok());
+}

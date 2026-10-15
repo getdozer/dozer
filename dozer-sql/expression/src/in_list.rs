@@ -1,6 +1,7 @@
 use dozer_types::types::Record;
 use dozer_types::types::{Field, Schema};
 
+use crate::comparison::evaluate_eq;
 use crate::error::Error;
 use crate::execution::Expression;
 
@@ -12,10 +13,10 @@ pub(crate) fn evaluate_in_list(
     record: &Record,
 ) -> Result<Field, Error> {
     let field = expr.evaluate(record, schema)?;
+    let mut left_literal = Expression::Literal(field);
     let mut result = false;
     for item in list {
-        let item = item.evaluate(record, schema)?;
-        if field == item {
+        if evaluate_eq(schema, &mut left_literal, item, record)? == Field::Boolean(true) {
             result = true;
             break;
         }
