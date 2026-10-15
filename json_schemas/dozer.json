@@ -98,10 +98,11 @@
     },
     "udfs": {
       "description": "UDF specific configuration (eg. !Onnx)",
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/UdfConfig"
-      }
+      "allOf": [
+        {
+          "$ref": "#/definitions/UdfConfigurations"
+        }
+      ]
     },
     "version": {
       "type": "integer",
@@ -2059,6 +2060,19 @@
       },
       "additionalProperties": false
     },
+    "UdfConfigurations": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/UdfConfig"
+          }
+        },
+        {
+          "$ref": "#/definitions/WasmUdfMap"
+        }
+      ]
+    },
     "UdfType": {
       "oneOf": [
         {
@@ -2084,8 +2098,71 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Wasm"
+          ],
+          "properties": {
+            "Wasm": {
+              "$ref": "#/definitions/WasmConfig"
+            }
+          },
+          "additionalProperties": false
         }
       ]
+    },
+    "WasmConfig": {
+      "description": "Numeric WebAssembly scalar function. Relative paths use the Dozer project directory.",
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "export": {
+          "description": "Export name; defaults to the configured SQL function name.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fuel": {
+          "description": "Instruction budget including module initialization, for each SQL evaluation.",
+          "default": 1000000,
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 10000000.0,
+          "minimum": 1.0
+        },
+        "memory_limit": {
+          "description": "Maximum linear memory size, in bytes.",
+          "default": 16777216,
+          "type": "integer",
+          "format": "uint",
+          "maximum": 67108864.0,
+          "minimum": 1.0
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "WasmUdfMap": {
+      "type": "object",
+      "required": [
+        "wasm"
+      ],
+      "properties": {
+        "wasm": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "WebhookConfig": {
       "examples": [

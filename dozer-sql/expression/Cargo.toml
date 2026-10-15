@@ -19,12 +19,14 @@ jsonpath = { path = "../jsonpath" }
 bincode = { workspace = true }
 tokio = "1.34.0"
 async-recursion = "1.0.5"
+wasmi = "=0.31.2"
 
 dozer-deno = { path = "../../dozer-deno", optional = true }
 deno_core = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = "1.2.0"
+wat = "=1.0.85"
 
 [features]
 bigdecimal = ["dep:bigdecimal", "sqlparser/bigdecimal"]
