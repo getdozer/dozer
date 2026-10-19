@@ -1,0 +1,8 @@
+transaction_id,customer_id,merchant_category,amount,transaction_date
+1001,101,airlines,640.50,2026-09-01
+1002,101,hotels,420.00,2026-09-08
+1003,101,dining,95.25,2026-09-12
+1004,102,groceries,180.40,2026-09-03
+1005,102,gas,62.10,2026-09-10
+1006,103,dining,310.00,2026-09-05
+1007,103,airlines,890.00,2026-09-14

@@ -1,0 +1,4 @@
+card_id,card_name,min_credit_score,min_annual_income,annual_fee,reward_category,benefits_summary
+CARD_TRAVEL_PRO,Horizon Sapphire Travel Card,720,80000,95,travel,5x points on flights and hotels with complimentary airport lounge access and zero foreign transaction fees.
+CARD_CASH_EVERYDAY,Everyday Cashback Plus Card,650,40000,0,cashback,3% cashback on groceries and gas and 1.5% unlimited cashback on all other everyday purchases.
+CARD_GOURMET_ELITE,Premier Dining & Lifestyle Card,750,100000,150,dining,4x points on global dining and entertainment plus monthly dining credits and concierge service.
