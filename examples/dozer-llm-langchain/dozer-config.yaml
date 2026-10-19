@@ -1,0 +1,68 @@
+app_name: dozer-llm-credit-card-chatbot
+version: 1
+
+connections:
+  - config: !LocalStorage
+      details:
+        path: ./data
+      tables:
+        - !Table
+          name: customer_profiles
+          config: !CSV
+            path: customer_profiles
+            extension: .csv
+        - !Table
+          name: transactions
+          config: !CSV
+            path: transactions
+            extension: .csv
+        - !Table
+          name: credit_card_products
+          config: !CSV
+            path: credit_card_products
+            extension: .csv
+    name: local_banking_data
+
+sources:
+  - name: customer_profiles
+    connection: local_banking_data
+    table_name: customer_profiles
+  - name: transactions
+    connection: local_banking_data
+    table_name: transactions
+  - name: credit_card_products
+    connection: local_banking_data
+    table_name: credit_card_products
+
+sql: |
+  SELECT
+    c.customer_id,
+    c.full_name,
+    c.credit_score,
+    c.annual_income,
+    c.preferred_reward_category,
+    COUNT(t.transaction_id) AS total_transactions,
+    COALESCE(SUM(t.amount), 0.0) AS total_spend
+  INTO unified_customer_profile
+  FROM customer_profiles c
+  LEFT JOIN transactions t ON c.customer_id = t.customer_id
+  GROUP BY
+    c.customer_id,
+    c.full_name,
+    c.credit_score,
+    c.annual_income,
+    c.preferred_reward_category;
+
+endpoints:
+  - name: unified_customer_profile
+    path: /unified_customer_profile
+    table_name: unified_customer_profile
+    index:
+      primary_key:
+        - customer_id
+  - name: credit_card_products
+    path: /credit_card_products
+    table_name: credit_card_products
+    index:
+      primary_key:
+        - card_id

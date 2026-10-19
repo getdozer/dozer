@@ -1,0 +1,4 @@
+customer_id,full_name,credit_score,annual_income,preferred_reward_category
+101,Alice Johnson,765,115000,travel
+102,Bob Martinez,690,68000,cashback
+103,Clara Nguyen,810,165000,dining
