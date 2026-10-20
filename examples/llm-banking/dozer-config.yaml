@@ -1,0 +1,44 @@
+app_name: llm_banking
+version: 1
+
+connections:
+  - name: banking_data
+    config: !Csv
+      path: ./data
+
+sources:
+  - name: customer_profiles
+    table_name: customer_profiles.csv
+    connection: banking_data
+
+  - name: transactions
+    table_name: transactions.csv
+    connection: banking_data
+
+  - name: credit_card_products
+    table_name: credit_card_products.csv
+    connection: banking_data
+
+sql: |
+  -- Aggregate customer spending by category and total activity
+  SELECT 
+    t.customer_id,
+    c.name,
+    c.credit_score,
+    c.annual_income,
+    t.category as top_spending_category,
+    SUM(t.amount) as total_category_spend,
+    COUNT(t.transaction_id) as transaction_count
+  INTO customer_spending_summary
+  FROM transactions t
+  JOIN customer_profiles c ON t.customer_id = c.customer_id
+  GROUP BY t.customer_id, c.name, c.credit_score, c.annual_income, t.category;
+
+endpoints:
+  - name: customer_spending_summary
+    path: /customer_spending_summary
+    table_name: customer_spending_summary
+
+  - name: credit_card_products
+    path: /credit_card_products
+    table_name: credit_card_products

@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  dozer:
+    image: getdozer/dozer:latest
+    container_name: dozer_banking_demo
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: ["dozer", "run", "-c", "dozer-config.yaml"]
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+
+  recommender-app:
+    image: python:3.11-slim
+    container_name: dozer_recommender_app
+    volumes:
+      - ./:/app
+    working_dir: /app
+    depends_on:
+      - dozer
+    command: ["python", "app.py", "CUST001"]
