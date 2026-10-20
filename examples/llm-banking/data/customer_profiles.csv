@@ -1,0 +1,6 @@
+customer_id,name,age,annual_income,credit_score,account_type,preferred_category
+CUST001,Alice Chen,32,95000,740,Premium Checking,Travel
+CUST002,Bob Miller,45,140000,810,Wealth Management,Dining
+CUST003,Charlie Davis,24,42000,660,Standard Checking,Groceries
+CUST004,Diana Prince,29,88000,720,Preferred Checking,Shopping
+CUST005,Evan Wright,52,210000,830,Private Banking,Investments

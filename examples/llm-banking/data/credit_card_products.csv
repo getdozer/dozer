@@ -1,0 +1,6 @@
+product_id,card_name,annual_fee,interest_rate,primary_category,min_credit_score,perks_summary
+CARD_TRAVEL_ELITE,Apex World Explorer Card,250,18.99,Travel,720,5x points on flights and hotels worldwide with zero foreign transaction fees and priority airport lounge access
+CARD_DINING_REWARDS,Gourmet Platinum Card,95,19.49,Dining,680,4% unlimited cash back on restaurants dining delivery and nightlife with annual dining credits
+CARD_GROCERY_SAVER,Everyday Essentials Card,0,16.99,Groceries,640,3% cash back on all supermarket grocery purchases wholesale clubs and gas station fill-ups
+CARD_CASH_FLEX,Smart Cash Preferred Card,0,17.49,Shopping,670,2% flat cash back on retail shopping online department stores and electronics with extended warranty protection
+CARD_PRESTIGE_BLACK,Infinite Private Reserve Card,495,15.99,Investments,780,Dedicated 24/7 concierge service 10x points on luxury travel dining and annual travel investment companion tickets
