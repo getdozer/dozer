@@ -235,7 +235,15 @@ struct MembershipJoin {
     negated: Vec<bool>,
     inner: Vec<HashMap<Field, usize>>,
     // Keep multiplicity and the original records, including unmatched rows.
-    outer: Vec<Record>,
+    outer: Vec<RetainedOuter>,
+}
+
+#[derive(Clone, Debug)]
+struct RetainedOuter {
+    record: Record,
+    // Historical output is state, not something that can be recomputed:
+    // expressions such as NOW() may have changed since the last emission.
+    visible: bool,
 }
 
 // None is SQL UNKNOWN. Boolean composition must retain it until WHERE is
@@ -384,22 +392,26 @@ impl Processor for MembershipJoin {
         if op.port == 0 {
             match op.op {
                 Operation::Insert { new } => {
-                    if self.evaluate(&new)? {
+                    let visible = self.evaluate(&new)?;
+                    if visible {
                         output.push(Operation::Insert { new: new.clone() });
                     }
-                    self.outer.push(new);
+                    self.outer.push(RetainedOuter {
+                        record: new,
+                        visible,
+                    });
                 }
                 Operation::Delete { old } => {
                     let index = self
                         .outer
                         .iter()
-                        .position(|row| row == &old)
+                        .position(|row| row.record == old)
                         .ok_or_else(|| {
                             PipelineError::InvalidQuery(
                                 "IN join deleted an unknown outer row".into(),
                             )
                         })?;
-                    if self.evaluate(&old)? {
+                    if self.outer[index].visible {
                         output.push(Operation::Delete { old });
                     }
                     self.outer.remove(index);
@@ -408,13 +420,14 @@ impl Processor for MembershipJoin {
                     let index = self
                         .outer
                         .iter()
-                        .position(|row| row == &old)
+                        .position(|row| row.record == old)
                         .ok_or_else(|| {
                             PipelineError::InvalidQuery(
                                 "IN join updated an unknown outer row".into(),
                             )
                         })?;
-                    match (self.evaluate(&old)?, self.evaluate(&new)?) {
+                    let visible = self.evaluate(&new)?;
+                    match (self.outer[index].visible, visible) {
                         (true, true) => output.push(Operation::Update {
                             old,
                             new: new.clone(),
@@ -423,16 +436,25 @@ impl Processor for MembershipJoin {
                         (false, true) => output.push(Operation::Insert { new: new.clone() }),
                         (false, false) => {}
                     }
-                    self.outer[index] = new;
+                    self.outer[index] = RetainedOuter {
+                        record: new,
+                        visible,
+                    };
                 }
                 Operation::BatchInsert { new } => {
                     let mut visible = vec![];
-                    for row in &new {
-                        if self.evaluate(row)? {
+                    let mut retained = vec![];
+                    for row in new {
+                        let matches = self.evaluate(&row)?;
+                        if matches {
                             visible.push(row.clone());
                         }
+                        retained.push(RetainedOuter {
+                            record: row,
+                            visible: matches,
+                        });
                     }
-                    self.outer.extend(new);
+                    self.outer.extend(retained);
                     if !visible.is_empty() {
                         output.push(Operation::BatchInsert { new: visible });
                     }
@@ -444,18 +466,15 @@ impl Processor for MembershipJoin {
                 return Err(PipelineError::InvalidPortHandle(op.port).into());
             }
             let rows = self.outer.clone();
-            let before = rows
-                .iter()
-                .map(|row| self.evaluate(row))
-                .collect::<Result<Vec<_>, _>>()?;
             // Apply the entire update/batch before recomputing visibility. Equal
-            // old/new keys and duplicate changes never produce transient output.
+            // old/new keys do not produce transient membership changes. Volatile
+            // expressions are reevaluated on every right-input event.
             let mut next = self.inner[index].clone();
             Self::update_inner(&mut next, &op.op)?;
             let previous = std::mem::replace(&mut self.inner[index], next);
             let after = rows
                 .iter()
-                .map(|row| self.evaluate(row))
+                .map(|row| self.evaluate(&row.record))
                 .collect::<Result<Vec<_>, _>>();
             let after = match after {
                 Ok(after) => after,
@@ -464,12 +483,13 @@ impl Processor for MembershipJoin {
                     return Err(error.into());
                 }
             };
-            for ((row, before), after) in rows.into_iter().zip(before).zip(after) {
-                match (before, after) {
-                    (false, true) => output.push(Operation::Insert { new: row }),
-                    (true, false) => output.push(Operation::Delete { old: row }),
+            for (index, (row, after)) in rows.into_iter().zip(after).enumerate() {
+                match (row.visible, after) {
+                    (false, true) => output.push(Operation::Insert { new: row.record }),
+                    (true, false) => output.push(Operation::Delete { old: row.record }),
                     _ => {}
                 }
+                self.outer[index].visible = after;
             }
         }
         for operation in output {
@@ -1076,5 +1096,49 @@ mod tests {
         assert_eq!(join.apply(0, insert(a.clone())), vec![insert(a.clone())]);
         assert_eq!(join.apply(1, insert(key(Some(7)))), vec![delete(a.clone())]);
         assert_eq!(join.apply(1, delete(key(Some(7)))), vec![insert(a)]);
+    }
+    #[tokio::test]
+    async fn reviewer_volatile_predicate_retracts_emitted_record() {
+        let deadline = dozer_types::chrono::Utc::now() + dozer_types::chrono::Duration::seconds(1);
+        let predicate = format!(
+            "NOW() < CAST('{}' AS TIMESTAMP) AND k IN (SELECT k FROM inner_rows)",
+            deadline.to_rfc3339()
+        );
+        let mut join = TestJoin::new(&predicate).await;
+        join.apply(1, insert(key(Some(7))));
+        let a = row(1, Some(7), "a");
+        assert_eq!(join.apply(0, insert(a.clone())), vec![insert(a.clone())]);
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        assert_eq!(join.apply(1, delete(key(Some(7)))), vec![delete(a)]);
+    }
+
+    #[tokio::test]
+    async fn revision_volatile_outer_changes_use_each_occurrences_emitted_visibility() {
+        let deadline = dozer_types::chrono::Utc::now() + dozer_types::chrono::Duration::seconds(2);
+        let predicate = format!(
+            "NOW() < CAST('{}' AS TIMESTAMP) AND k IN (SELECT k FROM inner_rows)",
+            deadline.to_rfc3339()
+        );
+        let mut join = TestJoin::new(&predicate).await;
+        join.apply(1, insert(key(Some(7))));
+        let a = row(1, Some(7), "a");
+        let b = row(2, Some(7), "b");
+        let batch = Operation::BatchInsert {
+            new: vec![a.clone(), a.clone(), b.clone()],
+        };
+        assert_eq!(join.apply(0, batch.clone()), vec![batch]);
+        std::thread::sleep(std::time::Duration::from_millis(2100));
+        assert_eq!(join.apply(0, delete(a.clone())), vec![delete(a.clone())]);
+        assert_eq!(
+            join.apply(
+                0,
+                Operation::Update {
+                    old: a.clone(),
+                    new: row(3, Some(7), "new")
+                }
+            ),
+            vec![delete(a)]
+        );
+        assert_eq!(join.apply(1, delete(key(Some(7)))), vec![delete(b)]);
     }
 }

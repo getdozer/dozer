@@ -89,6 +89,7 @@ pub fn statement_to_pipeline(
     udfs: Vec<UdfConfig>,
     runtime: Arc<Runtime>,
 ) -> Result<QueryContext, PipelineError> {
+    let first_new_processor = pipeline.processor_count();
     let dialect = DozerDialect {};
     let mut ctx = QueryContext::new(udfs, runtime);
     let is_top_select = true;
@@ -119,6 +120,20 @@ pub fn statement_to_pipeline(
         }
     }
 
+    if !ctx.membership_queries.is_empty() {
+        // Shadowing can leave an outer CTE unused. Such branches must not be
+        // submitted as dangling DAG processors. Preserve pre-existing pipeline
+        // nodes and every declared output, including other SQL statements.
+        let outputs = ctx
+            .output_tables_map
+            .values()
+            .map(|output| output.node.clone())
+            .collect::<Vec<_>>();
+        pipeline.remove_unused_processors_since(first_new_processor, &outputs);
+        let active_sources = pipeline.get_entry_points_sources_names();
+        ctx.used_sources
+            .retain(|source| active_sources.contains(source));
+    }
     Ok(ctx)
 }
 
@@ -135,6 +150,11 @@ fn query_to_pipeline(
     pipeline_idx: usize,
     is_top_select: bool,
 ) -> Result<(), PipelineError> {
+    // Only this query's result escapes its lexical scope. Its WITH names
+    // must not replace enclosing bindings when a nested query returns.
+    let enclosing_bindings = query_ctx.pipeline_map.clone();
+    let output_key = (pipeline_idx, table_info.name.0.clone());
+
     // return error if there is unsupported syntax
     if !query.order_by.is_empty() {
         return Err(PipelineError::UnsupportedSqlError(
@@ -156,6 +176,9 @@ fn query_to_pipeline(
             ));
         }
 
+        // Duplicate declarations are invalid within this WITH list, but an
+        // inner list may shadow a name inherited from an enclosing query.
+        let mut local_names = HashSet::new();
         for table in with.cte_tables {
             if table.from.is_some() {
                 return Err(PipelineError::UnsupportedSqlError(
@@ -163,10 +186,7 @@ fn query_to_pipeline(
                 ));
             }
             let table_name = table.alias.name.to_string();
-            if query_ctx
-                .pipeline_map
-                .contains_key(&(pipeline_idx, table_name.clone()))
-            {
+            if !local_names.insert(table_name.clone()) {
                 return Err(InvalidQuery(format!(
                     "WITH query name {table_name:?} specified more than once"
                 )));
@@ -237,6 +257,11 @@ fn query_to_pipeline(
             ))
         }
     };
+    let output = query_ctx.pipeline_map.get(&output_key).cloned();
+    query_ctx.pipeline_map = enclosing_bindings;
+    if let Some(output) = output {
+        query_ctx.pipeline_map.insert(output_key, output);
+    }
     Ok(())
 }
 

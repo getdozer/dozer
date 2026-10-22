@@ -19,6 +19,24 @@ otherwise NULL on either side makes membership unknown, except that an empty
 inner result makes `IN` false, including for a NULL outer value. `NOT IN`
 negates that truth value, and `WHERE` emits only true results.
 
+## Evaluation and scope
+
+Each retained outer occurrence also records whether it was actually emitted.
+An outer insert/batch evaluates its new rows; an update evaluates the new row;
+a delete retracts the stored occurrence without reevaluating its old predicate.
+A right-input event reevaluates retained rows against the complete new right
+multiset and compares with their stored visibility. Thus volatile expressions
+such as `NOW()` cannot erase the history needed to retract an emitted row.
+They are event-driven: time passing alone does not schedule reevaluation.
+Even a duplicate right-key event may change a volatile predicate's result.
+
+Nested WITH lists may shadow enclosing CTE names, while duplicate names within
+one WITH list remain invalid. Local bindings are restored on return. Newly
+planned CTE branches that cannot reach an output are omitted, preserving any
+pre-existing pipeline processors and sinks. Dynamic source schemas obtain the
+qualifier declared by FROM; existing table/connection metadata and explicit
+aliases remain authoritative.
+
 ## Boundaries
 
 - Correlated references and subqueries embedded inside scalar expressions

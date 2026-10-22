@@ -85,6 +85,50 @@ impl AppPipeline {
             .collect()
     }
 
+    /// A checkpoint for removing unused processors added by one planner call.
+    pub fn processor_count(&self) -> usize {
+        self.processors.len()
+    }
+
+    /// Remove newly planned branches that cannot reach a declared output.
+    /// Existing processors and all sinks are roots too, so unrelated pipeline
+    /// contents and new ancestors that feed them are preserved.
+    pub fn remove_unused_processors_since(&mut self, first_new: usize, outputs: &[String]) {
+        use std::collections::HashSet;
+        let mut live: HashSet<_> = self
+            .processors
+            .iter()
+            .take(first_new)
+            .map(|(handle, _)| handle.clone())
+            .chain(self.sinks.iter().map(|(handle, _)| handle.clone()))
+            .chain(outputs.iter().cloned().map(Self::create_handle))
+            .collect();
+        loop {
+            let mut changed = false;
+            for edge in &self.edges {
+                if live.contains(&edge.to.node) {
+                    changed |= live.insert(edge.from.node.clone());
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        let removed: HashSet<_> = self
+            .processors
+            .iter()
+            .skip(first_new)
+            .map(|(handle, _)| handle.clone())
+            .filter(|handle| !live.contains(handle))
+            .collect();
+        self.processors
+            .retain(|(handle, _)| !removed.contains(handle));
+        self.edges
+            .retain(|edge| !removed.contains(&edge.from.node) && !removed.contains(&edge.to.node));
+        self.entry_points
+            .retain(|(handle, _)| !removed.contains(handle));
+    }
+
     pub fn flags(&self) -> &PipelineFlags {
         &self.flags
     }
@@ -182,5 +226,69 @@ impl App {
             app_counter: 0,
             sources,
         }
+    }
+}
+
+#[cfg(test)]
+mod pruning_tests {
+    use super::*;
+    use crate::tests::{
+        processors::ConnectivityTestProcessorFactory, sinks::ConnectivityTestSinkFactory,
+    };
+
+    #[test]
+    fn retains_existing_nodes_outputs_sink_ancestors_and_prunes_only_unused_new_branches() {
+        let mut pipeline = AppPipeline::new_with_default_flags();
+        pipeline.add_processor(
+            Box::new(ConnectivityTestProcessorFactory),
+            "existing".into(),
+        );
+        let start = pipeline.processor_count();
+        for name in [
+            "used_from",
+            "used_output",
+            "dead_from",
+            "dead_output",
+            "sink_input",
+            "existing_input",
+        ] {
+            pipeline.add_processor(Box::new(ConnectivityTestProcessorFactory), name.into());
+        }
+        pipeline.add_sink(Box::new(ConnectivityTestSinkFactory), "sink".into());
+        for (from, to) in [
+            ("used_from", "used_output"),
+            ("dead_from", "dead_output"),
+            ("sink_input", "sink"),
+            ("existing_input", "existing"),
+        ] {
+            pipeline.connect_nodes(from.into(), 0, to.into(), 0);
+        }
+        for name in ["used_from", "dead_from", "sink_input", "existing_input"] {
+            pipeline.add_entry_point(name.into(), PipelineEntryPoint::new(name.into(), 0));
+        }
+        pipeline.remove_unused_processors_since(start, &["used_output".into()]);
+        let names = pipeline
+            .processors
+            .iter()
+            .map(|(handle, _)| handle.id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            names,
+            vec![
+                "existing",
+                "used_from",
+                "used_output",
+                "sink_input",
+                "existing_input"
+            ]
+        );
+        assert_eq!(pipeline.edges.len(), 3);
+        assert_eq!(
+            pipeline.get_entry_points_sources_names(),
+            vec!["used_from", "sink_input", "existing_input"]
+        );
+        assert_eq!(pipeline.sinks.len(), 1);
+        pipeline.remove_unused_processors_since(start, &["used_output".into()]);
+        assert_eq!(pipeline.processors.len(), 5);
     }
 }

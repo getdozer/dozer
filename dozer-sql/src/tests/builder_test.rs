@@ -423,3 +423,80 @@ fn streaming_membership_preserves_valid_alias_qualified_queries() {
         .block_on(DagExecutor::new(dag, Default::default()))
         .unwrap();
 }
+
+#[test]
+fn reviewer_inner_cte_can_shadow_outer_cte() {
+    let runtime = create_test_runtime();
+    let sql = "WITH local AS (SELECT CustomerID FROM users) SELECT * INTO results FROM users WHERE CustomerID IN (WITH local AS (SELECT CustomerID FROM allowed) SELECT CustomerID FROM local)";
+    let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+    // Verify the actual membership right branch reaches the inner `allowed`
+    // source (port 1), rather than merely accepting two same-shaped schemas.
+    use dozer_core::petgraph::{
+        visit::{EdgeRef, IntoEdgesDirected, IntoNodeReferences},
+        Direction,
+    };
+    let graph = dag.graph();
+    let membership = graph
+        .node_references()
+        .find_map(|(index, node)| match &node.kind {
+            dozer_core::NodeKind::Processor(factory) if factory.type_name() == "MembershipJoin" => {
+                Some(index)
+            }
+            _ => None,
+        })
+        .unwrap();
+    let rhs = graph
+        .edges_directed(membership, Direction::Incoming)
+        .find(|edge| edge.weight().to == 1)
+        .unwrap()
+        .source();
+    let mut pending = vec![rhs];
+    let mut seen = std::collections::HashSet::new();
+    let mut source_ports = std::collections::HashSet::new();
+    while let Some(node) = pending.pop() {
+        if !seen.insert(node) {
+            continue;
+        }
+        for edge in graph.edges_directed(node, Direction::Incoming) {
+            if matches!(&graph[edge.source()].kind, dozer_core::NodeKind::Source(_)) {
+                source_ports.insert(edge.weight().from);
+            } else {
+                pending.push(edge.source());
+            }
+        }
+    }
+    assert_eq!(source_ports, std::collections::HashSet::from([1]));
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+
+#[test]
+fn reviewer_unaliased_qualified_source_still_resolves() {
+    let runtime = create_test_runtime();
+    let sql = "SELECT * INTO results FROM users WHERE users.CustomerID IN (SELECT allowed.CustomerID FROM allowed)";
+    let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+
+#[test]
+fn reviewer_existing_qualified_selection_still_resolves() {
+    let runtime = create_test_runtime();
+    let sql = "SELECT * INTO results FROM users WHERE users.CustomerID = 1";
+    let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+
+#[test]
+fn revision_nested_cte_shadow_does_not_replace_enclosing_binding() {
+    let runtime = create_test_runtime();
+    let sql = "WITH local AS (SELECT Country FROM users), nested AS (WITH local AS (SELECT CustomerID FROM allowed) SELECT CustomerID FROM local) SELECT * INTO results FROM users WHERE Country IN (SELECT Country FROM local) AND CustomerID IN (SELECT CustomerID FROM nested)";
+    let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}

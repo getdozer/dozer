@@ -267,3 +267,14 @@ fn streaming_in_rejects_windowed_inputs_during_planning() {
         assert!(error.to_string().contains("IN subqueries with TTL/window inputs are not supported"), "{error}");
     }
 }
+
+#[test]
+fn revision_same_scope_duplicate_ctes_remain_invalid() {
+    for sql in [
+        "WITH local AS (SELECT k FROM a), local AS (SELECT k FROM b) SELECT * INTO results FROM local",
+        "SELECT * INTO results FROM users WHERE k IN (WITH local AS (SELECT k FROM a), local AS (SELECT k FROM b) SELECT k FROM local)",
+    ] {
+        let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None, vec![], create_test_runtime());
+        assert!(matches!(result, Err(PipelineError::InvalidQuery(message)) if message.contains("specified more than once")));
+    }
+}
