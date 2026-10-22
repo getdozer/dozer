@@ -154,6 +154,7 @@ fn query_to_pipeline(
     // must not replace enclosing bindings when a nested query returns.
     let enclosing_bindings = query_ctx.pipeline_map.clone();
     let output_key = (pipeline_idx, table_info.name.0.clone());
+    let result_binding = table_info.name.clone();
 
     // return error if there is unsupported syntax
     if !query.order_by.is_empty() {
@@ -257,7 +258,33 @@ fn query_to_pipeline(
             ))
         }
     };
-    let output = query_ctx.pipeline_map.get(&output_key).cloned();
+    let mut output = query_ctx.pipeline_map.get(&output_key).cloned();
+    // A named query exports a new relation scope. Wildcard projections retain
+    // their input annotations, so bind the complete result here rather than
+    // allowing the underlying source qualifier to leak through a CTE/derived
+    // table. The existing table binding preserves column layout and keys.
+    if result_binding.1.is_some() {
+        if let Some(output) = output.as_mut() {
+            let binding_node = format!("bind--{}", query_ctx.get_next_processor_id());
+            pipeline.add_processor(
+                Box::new(crate::product::table::factory::TableProcessorFactory::new(
+                    binding_node.clone(),
+                    result_binding,
+                )),
+                binding_node.clone(),
+            );
+            pipeline.connect_nodes(
+                output.node.clone(),
+                output.port,
+                binding_node.clone(),
+                DEFAULT_PORT_HANDLE,
+            );
+            *output = OutputNodeInfo {
+                node: binding_node,
+                port: DEFAULT_PORT_HANDLE,
+            };
+        }
+    }
     query_ctx.pipeline_map = enclosing_bindings;
     if let Some(output) = output {
         query_ctx.pipeline_map.insert(output_key, output);

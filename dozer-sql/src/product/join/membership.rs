@@ -1141,4 +1141,19 @@ mod tests {
         );
         assert_eq!(join.apply(1, delete(key(Some(7)))), vec![delete(b)]);
     }
+    #[tokio::test]
+    async fn independent_revision_duplicate_rhs_event_updates_historical_visibility() {
+        let deadline = dozer_types::chrono::Utc::now() + dozer_types::chrono::Duration::seconds(1);
+        let mut join = TestJoin::new(&format!(
+            "NOW() < CAST('{}' AS TIMESTAMP) AND k IN (SELECT k FROM inner_rows)",
+            deadline.to_rfc3339()
+        ))
+        .await;
+        join.apply(1, insert(key(Some(7))));
+        let a = row(1, Some(7), "a");
+        assert_eq!(join.apply(0, insert(a.clone())), vec![insert(a.clone())]);
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        assert_eq!(join.apply(1, insert(key(Some(7)))), vec![delete(a.clone())]);
+        assert!(join.apply(0, delete(a)).is_empty());
+    }
 }

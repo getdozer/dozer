@@ -35,7 +35,11 @@ one WITH list remain invalid. Local bindings are restored on return. Newly
 planned CTE branches that cannot reach an output are omitted, preserving any
 pre-existing pipeline processors and sinks. Dynamic source schemas obtain the
 qualifier declared by FROM; existing table/connection metadata and explicit
-aliases remain authoritative.
+aliases remain authoritative. Named CTE and derived-query results establish a
+new relation scope: their source annotations are rebound to the declared name
+before reuse, for both wildcard and explicit projections. Column layout, types,
+nullability, and keys are preserved; underlying source qualifiers do not leak
+through that boundary.
 
 ## Boundaries
 
