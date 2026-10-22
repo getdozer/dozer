@@ -81,12 +81,7 @@ impl<'a> CDCHandler<'a> {
             if let Some(Ok(PrimaryKeepAlive(ref k))) = message {
                 if k.reply() == 1 {
                     // Postgres' keep alive feedback function expects time from 2000-01-01 00:00:00
-                    let since_the_epoch = SystemTime::now()
-                        .duration_since(SystemTime::from(
-                            Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap(),
-                        ))
-                        .unwrap()
-                        .as_millis();
+                    let since_the_epoch = standby_status_timestamp(SystemTime::now());
                     stream
                         .standby_status_update(
                             PgLsn::from(self.last_commit_lsn),
@@ -268,5 +263,28 @@ impl LogicalReplicationStream {
         Ok(tokio_postgres::replication::LogicalReplicationStream::new(
             copy_stream,
         ))
+    }
+}
+
+fn standby_status_timestamp(now: SystemTime) -> u128 {
+    let pg_epoch = SystemTime::from(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap());
+    now.duration_since(pg_epoch).unwrap().as_millis()
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn test_standby_status_timestamp_uses_postgres_2000_epoch() {
+        let pg_epoch = SystemTime::from(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap());
+        assert_eq!(standby_status_timestamp(pg_epoch), 0);
+
+        let one_sec_after = pg_epoch + Duration::from_secs(1);
+        assert_eq!(standby_status_timestamp(one_sec_after), 1_000);
+
+        let year_2020 = SystemTime::from(Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap());
+        assert_eq!(standby_status_timestamp(year_2020), 631_152_000_000);
     }
 }
