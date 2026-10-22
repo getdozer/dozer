@@ -280,3 +280,146 @@ fn test_pipeline_builder() {
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);
 }
+
+#[test]
+fn streaming_membership_builds_executable_dag_with_original_output_schema() {
+    let runtime = create_test_runtime();
+    let mut pipeline = AppPipeline::new_with_default_flags();
+    let context = statement_to_pipeline(
+        "SELECT * INTO results FROM users WHERE CustomerID IN (SELECT CustomerID FROM allowed)",
+        &mut pipeline,
+        None,
+        vec![],
+        runtime.clone(),
+    )
+    .unwrap();
+    let output = &context.output_tables_map["results"];
+    pipeline.add_sink(Box::new(MembershipSchemaSinkFactory), "sink".into());
+    pipeline.connect_nodes(
+        output.node.clone(),
+        output.port,
+        "sink".into(),
+        DEFAULT_PORT_HANDLE,
+    );
+    let mut sources = AppSourceManager::new();
+    sources
+        .add(
+            Box::new(TestSourceFactory::new(vec![0, 1])),
+            AppSourceMappings::new(
+                "test".into(),
+                HashMap::from([("users".into(), 0), ("allowed".into(), 1)]),
+            ),
+        )
+        .unwrap();
+    let mut app = App::new(sources);
+    app.add_pipeline(pipeline);
+    let dag = app.into_dag().unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+
+#[derive(Debug)]
+struct MembershipSchemaSinkFactory;
+
+#[async_trait]
+impl SinkFactory for MembershipSchemaSinkFactory {
+    fn get_input_ports(&self) -> Vec<PortHandle> {
+        vec![DEFAULT_PORT_HANDLE]
+    }
+    fn get_input_port_name(&self, _port: &PortHandle) -> String {
+        "membership".into()
+    }
+    async fn build(
+        &self,
+        schemas: HashMap<PortHandle, Schema>,
+        _hub: EventHub,
+    ) -> Result<Box<dyn Sink>, BoxedError> {
+        self.prepare(schemas)?;
+        Ok(Box::new(TestSink {}))
+    }
+    fn prepare(&self, schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
+        let schema = &schemas[&DEFAULT_PORT_HANDLE];
+        assert_eq!(
+            schema
+                .fields
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["CustomerID", "Country", "Spending", "timestamp"]
+        );
+        assert!(schema.primary_index.is_empty());
+        Ok(())
+    }
+    fn type_name(&self) -> String {
+        "membership-schema-test".into()
+    }
+}
+
+fn membership_test_dag(
+    sql: &str,
+    include_local: bool,
+    runtime: std::sync::Arc<tokio::runtime::Runtime>,
+) -> Result<dozer_core::Dag, dozer_core::errors::ExecutionError> {
+    let mut pipeline = AppPipeline::new_with_default_flags();
+    let context = statement_to_pipeline(sql, &mut pipeline, None, vec![], runtime).unwrap();
+    let output = &context.output_tables_map["results"];
+    pipeline.add_sink(Box::new(MembershipSchemaSinkFactory), "sink".into());
+    pipeline.connect_nodes(
+        output.node.clone(),
+        output.port,
+        "sink".into(),
+        DEFAULT_PORT_HANDLE,
+    );
+    let mut mappings = HashMap::from([("users".into(), 0), ("allowed".into(), 1)]);
+    if include_local {
+        mappings.insert("local".into(), 2);
+    }
+    let mut sources = AppSourceManager::new();
+    sources
+        .add(
+            Box::new(TestSourceFactory::new(mappings.values().copied().collect())),
+            AppSourceMappings::new("test".into(), mappings),
+        )
+        .unwrap();
+    let mut app = App::new(sources);
+    app.add_pipeline(pipeline);
+    app.into_dag()
+}
+
+#[test]
+fn streaming_membership_cte_scope_is_validated_by_executable_dag() {
+    let runtime = create_test_runtime();
+    let sql = "SELECT * INTO results FROM users WHERE CustomerID IN (WITH local AS (SELECT CustomerID FROM allowed) SELECT CustomerID FROM local) AND CustomerID IN (SELECT CustomerID FROM local)";
+    let error = membership_test_dag(sql, false, runtime.clone()).unwrap_err();
+    assert!(
+        matches!(error, dozer_core::errors::ExecutionError::InvalidSourceIdentifier(ref name) if name == "local")
+    );
+    let dag = membership_test_dag(sql, true, runtime.clone()).unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+
+#[test]
+fn streaming_membership_rejects_correlated_and_unsupported_scalar_forms() {
+    let runtime = create_test_runtime();
+    for sql in [
+        "SELECT * INTO results FROM users WHERE CustomerID IN (SELECT CustomerID FROM allowed WHERE allowed.CustomerID = users.CustomerID)",
+        "SELECT * INTO results FROM users WHERE CASE WHEN CustomerID IN (SELECT CustomerID FROM allowed) THEN true ELSE false END",
+    ] {
+        let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+        let result = runtime.block_on(DagExecutor::new(dag, Default::default()));
+        assert!(result.is_err(), "unsupported SQL must not silently produce wrong output: {sql}");
+    }
+}
+
+#[test]
+fn streaming_membership_preserves_valid_alias_qualified_queries() {
+    let runtime = create_test_runtime();
+    let sql = "SELECT u.* INTO results FROM users u WHERE u.CustomerID IN (SELECT a.CustomerID FROM allowed a)";
+    let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}

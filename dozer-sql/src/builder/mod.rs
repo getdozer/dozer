@@ -50,6 +50,10 @@ pub struct QueryContext {
     // Processors counter
     processor_counter: usize,
 
+    // Lifetime-bearing plans cannot currently feed membership joins.
+    membership_queries: HashSet<usize>,
+    lifetime_queries: HashSet<usize>,
+
     // Udf related configs
     udfs: Vec<UdfConfig>,
 
@@ -70,6 +74,8 @@ impl QueryContext {
             used_sources: Default::default(),
             processors_list: Default::default(),
             processor_counter: Default::default(),
+            membership_queries: Default::default(),
+            lifetime_queries: Default::default(),
             udfs,
             runtime,
         }
@@ -294,20 +300,77 @@ fn select_to_pipeline(
 
     // Where clause
     if let Some(selection) = select.selection {
-        let selection = SelectionProcessorFactory::new(
-            gen_selection_name.clone(),
-            selection,
-            query_ctx.udfs.clone(),
-            query_ctx.runtime.clone(),
-        );
-
-        pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
+        let (plan, queries) =
+            crate::product::join::membership::MembershipPlan::extract(selection.clone());
+        let is_membership = !queries.is_empty();
+        if queries.is_empty() {
+            let selection = SelectionProcessorFactory::new(
+                gen_selection_name.clone(),
+                selection,
+                query_ctx.udfs.clone(),
+                query_ctx.runtime.clone(),
+            );
+            pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
+        } else {
+            if queries.len() >= usize::from(PortHandle::MAX) {
+                return Err(PipelineError::InvalidQuery("Too many IN subqueries".into()));
+            }
+            if query_ctx.lifetime_queries.contains(&pipeline_idx) {
+                return Err(PipelineError::InvalidQuery(
+                    "IN subqueries with TTL/window inputs are not supported".into(),
+                ));
+            }
+            query_ctx.membership_queries.insert(pipeline_idx);
+            for (index, query) in queries.into_iter().enumerate() {
+                let name = format!("membership_subquery_{}", query_ctx.get_next_processor_id());
+                // A subquery can reference outer CTEs, but its own CTEs and
+                // output names must not leak into sibling subqueries.
+                let mut inner_context = query_ctx.clone();
+                query_to_pipeline(
+                    TableInfo {
+                        name: NameOrAlias(name.clone(), None),
+                        override_name: None,
+                    },
+                    *query,
+                    pipeline,
+                    &mut inner_context,
+                    pipeline_idx,
+                    false,
+                )?;
+                query_ctx.processor_counter = inner_context.processor_counter;
+                query_ctx.processors_list = inner_context.processors_list.clone();
+                query_ctx.used_sources = inner_context.used_sources.clone();
+                let inner = inner_context
+                    .pipeline_map
+                    .get(&(pipeline_idx, name))
+                    .ok_or_else(|| {
+                        PipelineError::InvalidQuery("Missing IN subquery output".into())
+                    })?;
+                pipeline.connect_nodes(
+                    inner.node.clone(),
+                    inner.port,
+                    gen_selection_name.clone(),
+                    (index + 1) as PortHandle,
+                );
+            }
+            let join = crate::product::join::membership::MembershipJoinFactory::new(
+                gen_selection_name.clone(),
+                plan,
+                query_ctx.udfs.clone(),
+                query_ctx.runtime.clone(),
+            );
+            pipeline.add_processor(Box::new(join), gen_selection_name.clone());
+        }
 
         pipeline.connect_nodes(
             gen_product_name,
             product_output_port,
             gen_selection_name.clone(),
-            DEFAULT_PORT_HANDLE,
+            if is_membership {
+                0
+            } else {
+                DEFAULT_PORT_HANDLE
+            },
         );
 
         pipeline.connect_nodes(

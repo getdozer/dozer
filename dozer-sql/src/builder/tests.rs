@@ -209,3 +209,61 @@ from tbl;"#;
     //check if the result is ok
     assert!(result.is_ok());
 }
+
+#[test]
+fn static_in_registers_only_outer_source() {
+    let mut pipeline = AppPipeline::new_with_default_flags();
+    let context = statement_to_pipeline(
+        "SELECT * INTO result FROM outer_rows WHERE k IN (7, 8)",
+        &mut pipeline,
+        None,
+        vec![],
+        create_test_runtime(),
+    )
+    .unwrap();
+    assert_eq!(context.used_sources, vec!["outer_rows"]);
+}
+
+#[test]
+fn streaming_in_registers_inner_source() {
+    let mut pipeline = AppPipeline::new_with_default_flags();
+    let context = statement_to_pipeline(
+        "SELECT * INTO result FROM outer_rows WHERE k IN (SELECT k FROM inner_rows)",
+        &mut pipeline,
+        None,
+        vec![],
+        create_test_runtime(),
+    )
+    .unwrap();
+    let mut sources = context.used_sources;
+    sources.sort();
+    assert_eq!(sources, vec!["inner_rows", "outer_rows"]);
+    let mut entry_points = pipeline.get_entry_points_sources_names();
+    entry_points.sort();
+    assert_eq!(entry_points, vec!["inner_rows", "outer_rows"]);
+}
+
+#[test]
+fn streaming_in_ctes_do_not_leak_into_sibling_subqueries() {
+    let mut pipeline = AppPipeline::new_with_default_flags();
+    let context = statement_to_pipeline(
+        "SELECT * INTO result FROM outer_rows WHERE k IN (WITH local AS (SELECT k FROM inner_rows) SELECT k FROM local) AND k IN (SELECT k FROM local)",
+        &mut pipeline, None, vec![], create_test_runtime(),
+    ).unwrap();
+    // The CTE belongs only to the inner query. The sibling subquery refers to
+    // an independent source named local, not the inner CTE.
+    assert!(context.used_sources.contains(&"local".to_string()));
+    assert_eq!(context.output_tables_map.len(), 1);
+}
+
+#[test]
+fn streaming_in_rejects_windowed_inputs_during_planning() {
+    for sql in [
+        "SELECT * INTO result FROM TTL(outer_rows, timestamp, '1 MINUTE') WHERE k IN (SELECT k FROM inner_rows)",
+        "SELECT * INTO result FROM outer_rows WHERE k IN (SELECT k FROM TTL(inner_rows, timestamp, '1 MINUTE'))",
+        "WITH expiring AS (SELECT * FROM TTL(inner_rows, timestamp, '1 MINUTE')) SELECT * INTO result FROM outer_rows WHERE k IN (SELECT k FROM expiring)",
+    ] {
+        let error = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None, vec![], create_test_runtime()).unwrap_err();
+        assert!(error.to_string().contains("IN subqueries with TTL/window inputs are not supported"), "{error}");
+    }
+}

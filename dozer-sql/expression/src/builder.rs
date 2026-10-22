@@ -219,7 +219,10 @@ impl ExpressionBuilder {
             .collect();
 
         match matching_by_field.len() {
-            1 => Ok(Expression::Column {
+            // A unique column name still has to belong to the requested
+            // table. Otherwise correlated subquery references can silently
+            // bind to a same-named inner column.
+            1 if src_table_or_alias.is_none() => Ok(Expression::Column {
                 index: matching_by_field[0].0,
             }),
             _ => match src_table_or_alias {
@@ -1061,4 +1064,90 @@ pub fn extend_schema_source_def(schema: &Schema, name: &NameOrAlias) -> Schema {
     output_schema.fields = fields;
 
     output_schema
+}
+
+#[cfg(test)]
+mod qualifier_tests {
+    use super::*;
+
+    fn resolve(names: &[&str], schema: &Schema) -> Result<Expression, Error> {
+        ExpressionBuilder::parse_sql_column(
+            &names
+                .iter()
+                .map(|name| Ident::new(*name))
+                .collect::<Vec<_>>(),
+            schema,
+        )
+    }
+
+    #[test]
+    fn unique_column_preserves_valid_qualified_unqualified_and_aliased_resolution() {
+        let mut schema = Schema::new();
+        schema.field(
+            FieldDefinition::new(
+                "k".into(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Table {
+                    connection: "test".into(),
+                    name: "inner_rows".into(),
+                },
+            ),
+            true,
+        );
+        assert_eq!(
+            resolve(&["k"], &schema).unwrap(),
+            Expression::Column { index: 0 }
+        );
+        assert_eq!(
+            resolve(&["inner_rows", "k"], &schema).unwrap(),
+            Expression::Column { index: 0 }
+        );
+        assert_eq!(
+            resolve(&["test", "inner_rows", "k"], &schema).unwrap(),
+            Expression::Column { index: 0 }
+        );
+        assert!(resolve(&["outer_rows", "k"], &schema).is_err());
+        let aliased =
+            extend_schema_source_def(&schema, &NameOrAlias("inner_rows".into(), Some("i".into())));
+        assert_eq!(
+            resolve(&["i", "k"], &aliased).unwrap(),
+            Expression::Column { index: 0 }
+        );
+        assert_eq!(
+            resolve(&["k"], &aliased).unwrap(),
+            Expression::Column { index: 0 }
+        );
+        assert!(resolve(&["outer_rows", "k"], &aliased).is_err());
+        assert!(resolve(&["inner_rows", "k"], &aliased).is_err());
+    }
+
+    #[test]
+    fn multiple_tables_keep_qualified_column_indices_and_reject_ambiguity() {
+        let mut schema = Schema::new();
+        for name in ["left", "right"] {
+            schema.field(
+                FieldDefinition::new(
+                    "k".into(),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Table {
+                        connection: "test".into(),
+                        name: name.into(),
+                    },
+                ),
+                false,
+            );
+        }
+        assert!(resolve(&["k"], &schema).is_err());
+        assert_eq!(
+            resolve(&["left", "k"], &schema).unwrap(),
+            Expression::Column { index: 0 }
+        );
+        assert_eq!(
+            resolve(&["right", "k"], &schema).unwrap(),
+            Expression::Column { index: 1 }
+        );
+        assert!(resolve(&["unknown", "k"], &schema).is_err());
+    }
 }

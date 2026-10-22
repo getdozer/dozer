@@ -97,6 +97,17 @@ pub fn insert_table_operator_processor_to_pipeline(
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
+    if matches!(
+        operator.name.to_uppercase().as_str(),
+        "TTL" | "TUMBLE" | "HOP"
+    ) {
+        if query_context.membership_queries.contains(&pipeline_idx) {
+            return Err(PipelineError::InvalidQuery(
+                "IN subqueries with TTL/window inputs are not supported".into(),
+            ));
+        }
+        query_context.lifetime_queries.insert(pipeline_idx);
+    }
     let (processor_name, processor): (_, Box<dyn ProcessorFactory>) =
         if operator.name.to_uppercase() == "TTL" {
             let processor_name = generate_name("TOP", &operator, query_context);
