@@ -151,30 +151,15 @@ impl PostgresConfig {
             None => String::new(),
         };
         let field_val = match field {
-            "user" => match self.user.clone() {
-                Some(usr) => usr,
-                None => String::new(),
-            },
-            "password" => match self.password.clone() {
-                Some(pw) => pw,
-                None => String::new(),
-            },
-            "host" => match self.host.clone() {
-                Some(h) => h,
-                None => String::new(),
-            },
+            "user" => self.user.clone().unwrap_or_default(),
+            "password" => self.password.clone().unwrap_or_default(),
+            "host" => self.host.clone().unwrap_or_default(),
             "port" => match self.port {
                 Some(p) => p.to_string(),
                 None => String::new(),
             },
-            "database" => match self.database.clone() {
-                Some(db) => db,
-                None => String::new(),
-            },
-            "sslmode" => match self.sslmode.clone() {
-                Some(ssl) => ssl,
-                None => String::new(),
-            },
+            "database" => self.database.clone().unwrap_or_default(),
+            "sslmode" => self.sslmode.clone().unwrap_or_default(),
             &_ => String::new(),
         };
         if connection_url_val.is_empty() && field_val.is_empty() {

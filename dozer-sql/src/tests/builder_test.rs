@@ -280,3 +280,315 @@ fn test_pipeline_builder() {
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);
 }
+
+#[test]
+fn streaming_membership_builds_executable_dag_with_original_output_schema() {
+    let runtime = create_test_runtime();
+    let mut pipeline = AppPipeline::new_with_default_flags();
+    let context = statement_to_pipeline(
+        "SELECT * INTO results FROM users WHERE CustomerID IN (SELECT CustomerID FROM allowed)",
+        &mut pipeline,
+        None,
+        vec![],
+        runtime.clone(),
+    )
+    .unwrap();
+    let output = &context.output_tables_map["results"];
+    pipeline.add_sink(Box::new(MembershipSchemaSinkFactory), "sink".into());
+    pipeline.connect_nodes(
+        output.node.clone(),
+        output.port,
+        "sink".into(),
+        DEFAULT_PORT_HANDLE,
+    );
+    let mut sources = AppSourceManager::new();
+    sources
+        .add(
+            Box::new(TestSourceFactory::new(vec![0, 1])),
+            AppSourceMappings::new(
+                "test".into(),
+                HashMap::from([("users".into(), 0), ("allowed".into(), 1)]),
+            ),
+        )
+        .unwrap();
+    let mut app = App::new(sources);
+    app.add_pipeline(pipeline);
+    let dag = app.into_dag().unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+
+#[derive(Debug)]
+struct MembershipSchemaSinkFactory;
+
+#[async_trait]
+impl SinkFactory for MembershipSchemaSinkFactory {
+    fn get_input_ports(&self) -> Vec<PortHandle> {
+        vec![DEFAULT_PORT_HANDLE]
+    }
+    fn get_input_port_name(&self, _port: &PortHandle) -> String {
+        "membership".into()
+    }
+    async fn build(
+        &self,
+        schemas: HashMap<PortHandle, Schema>,
+        _hub: EventHub,
+    ) -> Result<Box<dyn Sink>, BoxedError> {
+        self.prepare(schemas)?;
+        Ok(Box::new(TestSink {}))
+    }
+    fn prepare(&self, schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
+        let schema = &schemas[&DEFAULT_PORT_HANDLE];
+        assert_eq!(
+            schema
+                .fields
+                .iter()
+                .map(|field| field.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["CustomerID", "Country", "Spending", "timestamp"]
+        );
+        assert!(schema.primary_index.is_empty());
+        Ok(())
+    }
+    fn type_name(&self) -> String {
+        "membership-schema-test".into()
+    }
+}
+
+fn membership_test_dag(
+    sql: &str,
+    include_local: bool,
+    runtime: std::sync::Arc<tokio::runtime::Runtime>,
+) -> Result<dozer_core::Dag, dozer_core::errors::ExecutionError> {
+    let mut pipeline = AppPipeline::new_with_default_flags();
+    let context = statement_to_pipeline(sql, &mut pipeline, None, vec![], runtime).unwrap();
+    let output = &context.output_tables_map["results"];
+    pipeline.add_sink(Box::new(MembershipSchemaSinkFactory), "sink".into());
+    pipeline.connect_nodes(
+        output.node.clone(),
+        output.port,
+        "sink".into(),
+        DEFAULT_PORT_HANDLE,
+    );
+    let mut mappings = HashMap::from([("users".into(), 0), ("allowed".into(), 1)]);
+    if include_local {
+        mappings.insert("local".into(), 2);
+    }
+    let mut sources = AppSourceManager::new();
+    sources
+        .add(
+            Box::new(TestSourceFactory::new(mappings.values().copied().collect())),
+            AppSourceMappings::new("test".into(), mappings),
+        )
+        .unwrap();
+    let mut app = App::new(sources);
+    app.add_pipeline(pipeline);
+    app.into_dag()
+}
+
+#[test]
+fn streaming_membership_cte_scope_is_validated_by_executable_dag() {
+    let runtime = create_test_runtime();
+    let sql = "SELECT * INTO results FROM users WHERE CustomerID IN (WITH local AS (SELECT CustomerID FROM allowed) SELECT CustomerID FROM local) AND CustomerID IN (SELECT CustomerID FROM local)";
+    let error = membership_test_dag(sql, false, runtime.clone()).unwrap_err();
+    assert!(
+        matches!(error, dozer_core::errors::ExecutionError::InvalidSourceIdentifier(ref name) if name == "local")
+    );
+    let dag = membership_test_dag(sql, true, runtime.clone()).unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+
+#[test]
+fn streaming_membership_rejects_correlated_and_unsupported_scalar_forms() {
+    let runtime = create_test_runtime();
+    for sql in [
+        "SELECT * INTO results FROM users WHERE CustomerID IN (SELECT CustomerID FROM allowed WHERE allowed.CustomerID = users.CustomerID)",
+        "SELECT * INTO results FROM users WHERE CASE WHEN CustomerID IN (SELECT CustomerID FROM allowed) THEN true ELSE false END",
+    ] {
+        let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+        let result = runtime.block_on(DagExecutor::new(dag, Default::default()));
+        assert!(result.is_err(), "unsupported SQL must not silently produce wrong output: {sql}");
+    }
+}
+
+#[test]
+fn streaming_membership_preserves_valid_alias_qualified_queries() {
+    let runtime = create_test_runtime();
+    let sql = "SELECT u.* INTO results FROM users u WHERE u.CustomerID IN (SELECT a.CustomerID FROM allowed a)";
+    let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+
+#[test]
+fn reviewer_inner_cte_can_shadow_outer_cte() {
+    let runtime = create_test_runtime();
+    let sql = "WITH local AS (SELECT CustomerID FROM users) SELECT * INTO results FROM users WHERE CustomerID IN (WITH local AS (SELECT CustomerID FROM allowed) SELECT CustomerID FROM local)";
+    let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+    // Verify the actual membership right branch reaches the inner `allowed`
+    // source (port 1), rather than merely accepting two same-shaped schemas.
+    use dozer_core::petgraph::{
+        visit::{EdgeRef, IntoEdgesDirected, IntoNodeReferences},
+        Direction,
+    };
+    let graph = dag.graph();
+    let membership = graph
+        .node_references()
+        .find_map(|(index, node)| match &node.kind {
+            dozer_core::NodeKind::Processor(factory) if factory.type_name() == "MembershipJoin" => {
+                Some(index)
+            }
+            _ => None,
+        })
+        .unwrap();
+    let rhs = graph
+        .edges_directed(membership, Direction::Incoming)
+        .find(|edge| edge.weight().to == 1)
+        .unwrap()
+        .source();
+    let mut pending = vec![rhs];
+    let mut seen = std::collections::HashSet::new();
+    let mut source_ports = std::collections::HashSet::new();
+    while let Some(node) = pending.pop() {
+        if !seen.insert(node) {
+            continue;
+        }
+        for edge in graph.edges_directed(node, Direction::Incoming) {
+            if matches!(&graph[edge.source()].kind, dozer_core::NodeKind::Source(_)) {
+                source_ports.insert(edge.weight().from);
+            } else {
+                pending.push(edge.source());
+            }
+        }
+    }
+    assert_eq!(source_ports, std::collections::HashSet::from([1]));
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+
+#[test]
+fn reviewer_unaliased_qualified_source_still_resolves() {
+    let runtime = create_test_runtime();
+    let sql = "SELECT * INTO results FROM users WHERE users.CustomerID IN (SELECT allowed.CustomerID FROM allowed)";
+    let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+
+#[test]
+fn reviewer_existing_qualified_selection_still_resolves() {
+    let runtime = create_test_runtime();
+    let sql = "SELECT * INTO results FROM users WHERE users.CustomerID = 1";
+    let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+
+#[test]
+fn revision_nested_cte_shadow_does_not_replace_enclosing_binding() {
+    let runtime = create_test_runtime();
+    let sql = "WITH local AS (SELECT Country FROM users), nested AS (WITH local AS (SELECT CustomerID FROM allowed) SELECT CustomerID FROM local) SELECT * INTO results FROM users WHERE Country IN (SELECT Country FROM local) AND CustomerID IN (SELECT CustomerID FROM nested)";
+    let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+
+#[test]
+fn independent_revision_unused_source_and_multiple_outputs() {
+    let runtime = create_test_runtime();
+    let mut pipeline = AppPipeline::new_with_default_flags();
+    let context = statement_to_pipeline(
+      "WITH unused AS (SELECT CustomerID FROM missing_source) SELECT * INTO results FROM users WHERE CustomerID IN (SELECT CustomerID FROM allowed); SELECT * INTO second FROM allowed",
+      &mut pipeline, None, vec![], runtime.clone()).unwrap();
+    assert!(!context.used_sources.contains(&"missing_source".to_string()));
+    assert_eq!(context.output_tables_map.len(), 2);
+    for (name, output) in &context.output_tables_map {
+        pipeline.add_sink(Box::new(MembershipSchemaSinkFactory), name.clone());
+        pipeline.connect_nodes(
+            output.node.clone(),
+            output.port,
+            name.clone(),
+            DEFAULT_PORT_HANDLE,
+        );
+    }
+    let mut sources = AppSourceManager::new();
+    sources
+        .add(
+            Box::new(TestSourceFactory::new(vec![0, 1])),
+            AppSourceMappings::new(
+                "test".into(),
+                HashMap::from([("users".into(), 0), ("allowed".into(), 1)]),
+            ),
+        )
+        .unwrap();
+    let mut app = App::new(sources);
+    app.add_pipeline(pipeline);
+    let dag = app.into_dag().unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+#[test]
+fn independent_revision_nested_scope_without_membership() {
+    let runtime = create_test_runtime();
+    let sql = "WITH local AS (SELECT Country FROM users), nested AS (WITH local AS (SELECT CustomerID FROM allowed) SELECT CustomerID FROM local) SELECT u.* INTO results FROM users AS u JOIN local AS l ON u.Country = l.Country JOIN nested AS n ON u.CustomerID = n.CustomerID";
+    let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+
+#[test]
+fn independent_revision_qualified_cte_selection() {
+    let runtime = create_test_runtime();
+    let sql = "WITH local AS (SELECT * FROM users) SELECT * INTO results FROM local WHERE local.CustomerID = 1";
+    let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+    runtime
+        .block_on(DagExecutor::new(dag, Default::default()))
+        .unwrap();
+}
+
+#[test]
+fn cte_binding_wildcard_explicit_alias_nested_reused_and_join_controls() {
+    let runtime = create_test_runtime();
+    for sql in [
+        "WITH local AS (SELECT * FROM users) SELECT local.* INTO results FROM local WHERE local.CustomerID = 1",
+        "SELECT d.* INTO results FROM (SELECT * FROM users) d WHERE d.CustomerID = 1",
+        "WITH local AS (SELECT CustomerID, Country, Spending, timestamp FROM users) SELECT local.* INTO results FROM local WHERE local.CustomerID = 1",
+        "WITH local AS (SELECT * FROM users) SELECT l.* INTO results FROM local l WHERE l.CustomerID = 1",
+        "WITH first AS (SELECT * FROM users), local AS (SELECT * FROM first) SELECT local.* INTO results FROM local WHERE local.CustomerID = 1",
+        "WITH local AS (SELECT * FROM users) SELECT a.* INTO results FROM local a JOIN local b ON a.CustomerID = b.CustomerID",
+        "WITH local AS (SELECT * FROM allowed) SELECT users.* INTO results FROM users JOIN local ON users.CustomerID = local.CustomerID",
+        "WITH local AS (SELECT * FROM users) SELECT local.* INTO results FROM local WHERE local.CustomerID IN (SELECT allowed.CustomerID FROM allowed)",
+    ] {
+        let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+        let result = runtime.block_on(DagExecutor::new(dag, Default::default()));
+        assert!(result.is_ok(), "{sql}: {:?}", result.as_ref().err());
+    }
+}
+
+#[test]
+fn cte_binding_rejects_hidden_source_unknown_alias_and_correlated_qualifiers() {
+    let runtime = create_test_runtime();
+    for sql in [
+        "WITH local AS (SELECT * FROM users) SELECT * INTO results FROM local WHERE users.CustomerID = 1",
+        "SELECT * INTO results FROM (SELECT * FROM users) d WHERE users.CustomerID = 1",
+        "WITH local AS (SELECT * FROM users) SELECT * INTO results FROM local l WHERE local.CustomerID = 1",
+        "WITH first AS (SELECT * FROM users), local AS (SELECT * FROM first) SELECT * INTO results FROM local WHERE first.CustomerID = 1",
+        "WITH local AS (SELECT * FROM users) SELECT * INTO results FROM local WHERE unknown.CustomerID = 1",
+        "WITH local AS (SELECT * FROM users) SELECT * INTO results FROM local WHERE local.CustomerID IN (SELECT local.CustomerID FROM allowed)",
+    ] {
+        let dag = membership_test_dag(sql, false, runtime.clone()).unwrap();
+        let result = runtime.block_on(DagExecutor::new(dag, Default::default()));
+        assert!(result.is_err(), "unexpectedly accepted: {sql}");
+        assert!(format!("{:?}", result.err().unwrap()).contains("InvalidIdent"));
+    }
+}

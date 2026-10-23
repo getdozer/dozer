@@ -219,7 +219,10 @@ impl ExpressionBuilder {
             .collect();
 
         match matching_by_field.len() {
-            1 => Ok(Expression::Column {
+            // A unique column name still has to belong to the requested
+            // table. Otherwise correlated subquery references can silently
+            // bind to a same-named inner column.
+            1 if src_table_or_alias.is_none() => Ok(Expression::Column {
                 index: matching_by_field[0].0,
             }),
             _ => match src_table_or_alias {
@@ -239,7 +242,7 @@ impl ExpressionBuilder {
                             .collect();
 
                     match matching_by_table_or_alias.len() {
-                        1 => Ok(Expression::Column {
+                        1 if src_connection.is_none() => Ok(Expression::Column {
                             index: matching_by_table_or_alias[0].0,
                         }),
                         _ => match src_connection {
@@ -1054,6 +1057,19 @@ pub fn extend_schema_source_def(schema: &Schema, name: &NameOrAlias) -> Schema {
             field.source = SourceDefinition::Alias {
                 name: alias.to_string(),
             };
+        } else if matches!(field.source, SourceDefinition::Dynamic) {
+            // Custom sources need not supply table metadata. The FROM binding
+            // still supplies a valid qualifier; never infer one from the
+            // expression being resolved (which could be a correlated reference).
+            field.source = match name.0.rsplit_once('.') {
+                Some((connection, table)) => SourceDefinition::Table {
+                    connection: connection.to_string(),
+                    name: table.to_string(),
+                },
+                None => SourceDefinition::Alias {
+                    name: name.0.clone(),
+                },
+            };
         }
 
         fields.push(field);
@@ -1061,4 +1077,119 @@ pub fn extend_schema_source_def(schema: &Schema, name: &NameOrAlias) -> Schema {
     output_schema.fields = fields;
 
     output_schema
+}
+
+#[cfg(test)]
+mod qualifier_tests {
+    use super::*;
+
+    fn resolve(names: &[&str], schema: &Schema) -> Result<Expression, Error> {
+        ExpressionBuilder::parse_sql_column(
+            &names
+                .iter()
+                .map(|name| Ident::new(*name))
+                .collect::<Vec<_>>(),
+            schema,
+        )
+    }
+
+    #[test]
+    fn unique_column_preserves_valid_qualified_unqualified_and_aliased_resolution() {
+        let mut schema = Schema::new();
+        schema.field(
+            FieldDefinition::new(
+                "k".into(),
+                FieldType::Int,
+                false,
+                SourceDefinition::Table {
+                    connection: "test".into(),
+                    name: "inner_rows".into(),
+                },
+            ),
+            true,
+        );
+        assert_eq!(
+            resolve(&["k"], &schema).unwrap(),
+            Expression::Column { index: 0 }
+        );
+        assert_eq!(
+            resolve(&["inner_rows", "k"], &schema).unwrap(),
+            Expression::Column { index: 0 }
+        );
+        assert_eq!(
+            resolve(&["test", "inner_rows", "k"], &schema).unwrap(),
+            Expression::Column { index: 0 }
+        );
+        assert!(resolve(&["outer_rows", "k"], &schema).is_err());
+        assert!(resolve(&["outer_connection", "inner_rows", "k"], &schema).is_err());
+        let aliased =
+            extend_schema_source_def(&schema, &NameOrAlias("inner_rows".into(), Some("i".into())));
+        assert_eq!(
+            resolve(&["i", "k"], &aliased).unwrap(),
+            Expression::Column { index: 0 }
+        );
+        assert_eq!(
+            resolve(&["k"], &aliased).unwrap(),
+            Expression::Column { index: 0 }
+        );
+        assert!(resolve(&["outer_rows", "k"], &aliased).is_err());
+        assert!(resolve(&["inner_rows", "k"], &aliased).is_err());
+    }
+
+    #[test]
+    fn multiple_tables_keep_qualified_column_indices_and_reject_ambiguity() {
+        let mut schema = Schema::new();
+        for name in ["left", "right"] {
+            schema.field(
+                FieldDefinition::new(
+                    "k".into(),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Table {
+                        connection: "test".into(),
+                        name: name.into(),
+                    },
+                ),
+                false,
+            );
+        }
+        assert!(resolve(&["k"], &schema).is_err());
+        assert_eq!(
+            resolve(&["left", "k"], &schema).unwrap(),
+            Expression::Column { index: 0 }
+        );
+        assert_eq!(
+            resolve(&["right", "k"], &schema).unwrap(),
+            Expression::Column { index: 1 }
+        );
+        assert!(resolve(&["unknown", "k"], &schema).is_err());
+    }
+
+    #[test]
+    fn revision_dynamic_from_qualifiers_are_bound_without_changing_layout() {
+        let mut schema = Schema::new();
+        schema.field(
+            FieldDefinition::new("k".into(), FieldType::Int, true, SourceDefinition::Dynamic),
+            true,
+        );
+        for name in ["inner_rows", "test.inner_rows"] {
+            let bound = extend_schema_source_def(&schema, &NameOrAlias(name.into(), None));
+            assert_eq!(bound.primary_index, schema.primary_index);
+            assert_eq!(bound.fields[0].name, "k");
+            assert_eq!(bound.fields[0].typ, FieldType::Int);
+            assert!(bound.fields[0].nullable);
+            assert_eq!(
+                resolve(&["inner_rows", "k"], &bound).unwrap(),
+                Expression::Column { index: 0 }
+            );
+            assert!(resolve(&["outer_rows", "k"], &bound).is_err());
+            if name.contains('.') {
+                assert_eq!(
+                    resolve(&["test", "inner_rows", "k"], &bound).unwrap(),
+                    Expression::Column { index: 0 }
+                );
+                assert!(resolve(&["outer_connection", "inner_rows", "k"], &bound).is_err());
+            }
+        }
+    }
 }

@@ -50,6 +50,10 @@ pub struct QueryContext {
     // Processors counter
     processor_counter: usize,
 
+    // Lifetime-bearing plans cannot currently feed membership joins.
+    membership_queries: HashSet<usize>,
+    lifetime_queries: HashSet<usize>,
+
     // Udf related configs
     udfs: Vec<UdfConfig>,
 
@@ -70,6 +74,8 @@ impl QueryContext {
             used_sources: Default::default(),
             processors_list: Default::default(),
             processor_counter: Default::default(),
+            membership_queries: Default::default(),
+            lifetime_queries: Default::default(),
             udfs,
             runtime,
         }
@@ -83,6 +89,7 @@ pub fn statement_to_pipeline(
     udfs: Vec<UdfConfig>,
     runtime: Arc<Runtime>,
 ) -> Result<QueryContext, PipelineError> {
+    let first_new_processor = pipeline.processor_count();
     let dialect = DozerDialect {};
     let mut ctx = QueryContext::new(udfs, runtime);
     let is_top_select = true;
@@ -113,6 +120,20 @@ pub fn statement_to_pipeline(
         }
     }
 
+    if !ctx.membership_queries.is_empty() {
+        // Shadowing can leave an outer CTE unused. Such branches must not be
+        // submitted as dangling DAG processors. Preserve pre-existing pipeline
+        // nodes and every declared output, including other SQL statements.
+        let outputs = ctx
+            .output_tables_map
+            .values()
+            .map(|output| output.node.clone())
+            .collect::<Vec<_>>();
+        pipeline.remove_unused_processors_since(first_new_processor, &outputs);
+        let active_sources = pipeline.get_entry_points_sources_names();
+        ctx.used_sources
+            .retain(|source| active_sources.contains(source));
+    }
     Ok(ctx)
 }
 
@@ -129,6 +150,12 @@ fn query_to_pipeline(
     pipeline_idx: usize,
     is_top_select: bool,
 ) -> Result<(), PipelineError> {
+    // Only this query's result escapes its lexical scope. Its WITH names
+    // must not replace enclosing bindings when a nested query returns.
+    let enclosing_bindings = query_ctx.pipeline_map.clone();
+    let output_key = (pipeline_idx, table_info.name.0.clone());
+    let result_binding = table_info.name.clone();
+
     // return error if there is unsupported syntax
     if !query.order_by.is_empty() {
         return Err(PipelineError::UnsupportedSqlError(
@@ -150,6 +177,9 @@ fn query_to_pipeline(
             ));
         }
 
+        // Duplicate declarations are invalid within this WITH list, but an
+        // inner list may shadow a name inherited from an enclosing query.
+        let mut local_names = HashSet::new();
         for table in with.cte_tables {
             if table.from.is_some() {
                 return Err(PipelineError::UnsupportedSqlError(
@@ -157,10 +187,7 @@ fn query_to_pipeline(
                 ));
             }
             let table_name = table.alias.name.to_string();
-            if query_ctx
-                .pipeline_map
-                .contains_key(&(pipeline_idx, table_name.clone()))
-            {
+            if !local_names.insert(table_name.clone()) {
                 return Err(InvalidQuery(format!(
                     "WITH query name {table_name:?} specified more than once"
                 )));
@@ -231,6 +258,37 @@ fn query_to_pipeline(
             ))
         }
     };
+    let mut output = query_ctx.pipeline_map.get(&output_key).cloned();
+    // A named query exports a new relation scope. Wildcard projections retain
+    // their input annotations, so bind the complete result here rather than
+    // allowing the underlying source qualifier to leak through a CTE/derived
+    // table. The existing table binding preserves column layout and keys.
+    if result_binding.1.is_some() {
+        if let Some(output) = output.as_mut() {
+            let binding_node = format!("bind--{}", query_ctx.get_next_processor_id());
+            pipeline.add_processor(
+                Box::new(crate::product::table::factory::TableProcessorFactory::new(
+                    binding_node.clone(),
+                    result_binding,
+                )),
+                binding_node.clone(),
+            );
+            pipeline.connect_nodes(
+                output.node.clone(),
+                output.port,
+                binding_node.clone(),
+                DEFAULT_PORT_HANDLE,
+            );
+            *output = OutputNodeInfo {
+                node: binding_node,
+                port: DEFAULT_PORT_HANDLE,
+            };
+        }
+    }
+    query_ctx.pipeline_map = enclosing_bindings;
+    if let Some(output) = output {
+        query_ctx.pipeline_map.insert(output_key, output);
+    }
     Ok(())
 }
 
@@ -294,20 +352,77 @@ fn select_to_pipeline(
 
     // Where clause
     if let Some(selection) = select.selection {
-        let selection = SelectionProcessorFactory::new(
-            gen_selection_name.clone(),
-            selection,
-            query_ctx.udfs.clone(),
-            query_ctx.runtime.clone(),
-        );
-
-        pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
+        let (plan, queries) =
+            crate::product::join::membership::MembershipPlan::extract(selection.clone());
+        let is_membership = !queries.is_empty();
+        if queries.is_empty() {
+            let selection = SelectionProcessorFactory::new(
+                gen_selection_name.clone(),
+                selection,
+                query_ctx.udfs.clone(),
+                query_ctx.runtime.clone(),
+            );
+            pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
+        } else {
+            if queries.len() >= usize::from(PortHandle::MAX) {
+                return Err(PipelineError::InvalidQuery("Too many IN subqueries".into()));
+            }
+            if query_ctx.lifetime_queries.contains(&pipeline_idx) {
+                return Err(PipelineError::InvalidQuery(
+                    "IN subqueries with TTL/window inputs are not supported".into(),
+                ));
+            }
+            query_ctx.membership_queries.insert(pipeline_idx);
+            for (index, query) in queries.into_iter().enumerate() {
+                let name = format!("membership_subquery_{}", query_ctx.get_next_processor_id());
+                // A subquery can reference outer CTEs, but its own CTEs and
+                // output names must not leak into sibling subqueries.
+                let mut inner_context = query_ctx.clone();
+                query_to_pipeline(
+                    TableInfo {
+                        name: NameOrAlias(name.clone(), None),
+                        override_name: None,
+                    },
+                    *query,
+                    pipeline,
+                    &mut inner_context,
+                    pipeline_idx,
+                    false,
+                )?;
+                query_ctx.processor_counter = inner_context.processor_counter;
+                query_ctx.processors_list = inner_context.processors_list.clone();
+                query_ctx.used_sources = inner_context.used_sources.clone();
+                let inner = inner_context
+                    .pipeline_map
+                    .get(&(pipeline_idx, name))
+                    .ok_or_else(|| {
+                        PipelineError::InvalidQuery("Missing IN subquery output".into())
+                    })?;
+                pipeline.connect_nodes(
+                    inner.node.clone(),
+                    inner.port,
+                    gen_selection_name.clone(),
+                    (index + 1) as PortHandle,
+                );
+            }
+            let join = crate::product::join::membership::MembershipJoinFactory::new(
+                gen_selection_name.clone(),
+                plan,
+                query_ctx.udfs.clone(),
+                query_ctx.runtime.clone(),
+            );
+            pipeline.add_processor(Box::new(join), gen_selection_name.clone());
+        }
 
         pipeline.connect_nodes(
             gen_product_name,
             product_output_port,
             gen_selection_name.clone(),
-            DEFAULT_PORT_HANDLE,
+            if is_membership {
+                0
+            } else {
+                DEFAULT_PORT_HANDLE
+            },
         );
 
         pipeline.connect_nodes(
