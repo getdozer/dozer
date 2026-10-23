@@ -48,3 +48,5 @@ jobs:
 
       - name: Cargo Deny
         uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          rust-version: "1.99.1"
