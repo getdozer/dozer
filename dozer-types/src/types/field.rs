@@ -275,7 +275,7 @@ impl Field {
         }
     }
 
-    pub(crate) fn encode_data(&self) -> Cow<[u8]> {
+    pub(crate) fn encode_data(&self) -> Cow<'_, [u8]> {
         match self {
             Field::UInt(i) => Cow::Owned(i.to_be_bytes().into()),
             Field::U128(i) => Cow::Owned(i.to_be_bytes().into()),

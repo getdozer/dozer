@@ -61,7 +61,6 @@ pub struct EthFilter {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 #[schemars(example = "Self::example")]
-
 pub struct GrpcConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host: Option<String>,
@@ -95,7 +94,6 @@ pub enum ConfigSchemas {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 #[schemars(example = "Self::example")]
-
 pub struct EthConfig {
     pub provider: EthProviderConfig,
 }
@@ -169,7 +167,6 @@ pub struct EthContract {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 #[schemars(example = "Self::example")]
-
 pub struct KafkaConfig {
     pub broker: String,
 
@@ -192,7 +189,6 @@ impl KafkaConfig {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 #[schemars(example = "Self::example")]
-
 pub struct SnowflakeConfig {
     pub server: String,
 
@@ -360,7 +356,6 @@ pub struct LocalDetails {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 #[schemars(example = "Self::example")]
-
 pub struct LocalStorage {
     pub details: LocalDetails,
 
@@ -388,21 +383,18 @@ impl DeltaTable {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 #[schemars(example = "Self::example")]
-
 pub struct DeltaLakeConfig {
     pub tables: Vec<DeltaTable>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 #[schemars(example = "Self::example")]
-
 pub struct MongodbConfig {
     pub connection_string: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 #[schemars(example = "Self::example")]
-
 pub struct MySQLConfig {
     pub url: String,
 

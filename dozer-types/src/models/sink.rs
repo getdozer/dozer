@@ -1,9 +1,8 @@
-use std::{num::NonZeroUsize, path::Display};
+use std::num::NonZeroUsize;
 
 use super::equal_default;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Default, Eq, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
@@ -118,7 +117,7 @@ impl SinkConfig {
             SinkConfig::Clickhouse(_) => "clickhouse",
             SinkConfig::Oracle(_) => "oracle",
         };
-        return name.to_string();
+        name.to_string()
     }
 }
 

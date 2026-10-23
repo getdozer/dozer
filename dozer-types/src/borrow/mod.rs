@@ -4,13 +4,13 @@ pub trait IntoOwned<Owned> {
     fn into_owned(self) -> Owned;
 }
 
-impl<'a> IntoOwned<String> for &'a str {
+impl IntoOwned<String> for &str {
     fn into_owned(self) -> String {
         self.to_string()
     }
 }
 
-impl<'a, T: Clone> IntoOwned<Vec<T>> for &'a [T] {
+impl<T: Clone> IntoOwned<Vec<T>> for &[T] {
     fn into_owned(self) -> Vec<T> {
         self.to_vec()
     }
@@ -39,7 +39,10 @@ impl Borrow for String {
 }
 
 impl<T: Clone> Borrow for Vec<T> {
-    type Borrowed<'a> = &'a [T] where T: 'a;
+    type Borrowed<'a>
+        = &'a [T]
+    where
+        T: 'a;
 
     fn borrow(&self) -> Self::Borrowed<'_> {
         self
@@ -99,7 +102,10 @@ impl<'cow, B: Borrow + 'cow> Borrow for Cow<'cow, B>
 where
     for<'a> B::Borrowed<'a>: Copy,
 {
-    type Borrowed<'a> = B::Borrowed<'a> where Self: 'a;
+    type Borrowed<'a>
+        = B::Borrowed<'a>
+    where
+        Self: 'a;
 
     fn borrow(&self) -> B::Borrowed<'_> {
         match self {
