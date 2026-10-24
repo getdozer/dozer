@@ -1,0 +1,16 @@
+transaction_id,customer_id,merchant,category,amount,tx_date
+tx_1001,cust_101,Delta Air Lines,travel,1450.00,2026-10-01
+tx_1002,cust_101,Marriott Bonvoy,travel,980.00,2026-10-05
+tx_1003,cust_101,Le Bernardin,dining,420.00,2026-10-09
+tx_1004,cust_101,Whole Foods Market,grocery,310.00,2026-10-12
+tx_1005,cust_101,Air France,travel,1820.00,2026-10-18
+tx_1006,cust_101,Apple Store,general,650.00,2026-10-20
+tx_2001,cust_102,Trader Joes,grocery,540.00,2026-10-02
+tx_2002,cust_102,Kroger,grocery,620.00,2026-10-08
+tx_2003,cust_102,Chipotle,dining,280.00,2026-10-11
+tx_2004,cust_102,Sweetgreen,dining,340.00,2026-10-15
+tx_2005,cust_102,Target,general,210.00,2026-10-19
+tx_3001,cust_103,Singapore Airlines,travel,3200.00,2026-10-03
+tx_3002,cust_103,Four Seasons Hotel,travel,2400.00,2026-10-07
+tx_3003,cust_103,Nobu,dining,890.00,2026-10-14
+tx_3004,cust_103,Erewhon,grocery,480.00,2026-10-17

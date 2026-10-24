@@ -1,0 +1,4 @@
+customer_id,full_name,credit_score,annual_income,credit_utilization_pct,current_card_id,preferred_benefit
+cust_101,Alice Rivera,765,118000,14.5,card_basic,airport lounge access and international travel rewards
+cust_102,Marcus Vance,695,74000,28.0,card_basic,cashback on groceries and dining with low annual fee
+cust_103,Priya Nair,805,165000,9.2,card_cashback_plus,luxury travel perks global entry and hotel status

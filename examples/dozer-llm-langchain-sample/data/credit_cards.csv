@@ -1,0 +1,5 @@
+card_id,card_name,issuer_tier,min_credit_score,min_annual_income,max_utilization_pct,annual_fee,welcome_bonus_usd,travel_rate,dining_rate,grocery_rate,base_rate,foreign_tx_fee_pct
+card_basic,Dozer Everyday Zero,Standard,620,25000,50.0,0,100,0.01,0.015,0.015,0.01,3.0
+card_cashback_plus,Dozer Cashback Preferred,Preferred,670,45000,35.0,95,250,0.02,0.03,0.04,0.015,0.0
+card_sapphire_voyager,Dozer Sapphire Voyager,Premium,720,80000,25.0,250,600,0.04,0.03,0.02,0.015,0.0
+card_zenith_reserve,Dozer Zenith Reserve,Ultra-Luxury,760,130000,15.0,550,900,0.05,0.04,0.02,0.02,0.0
