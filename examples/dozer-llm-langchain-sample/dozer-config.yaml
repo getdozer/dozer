@@ -1,0 +1,87 @@
+app_name: dozer-banking-llm-advisor
+version: 1
+
+api:
+  rest:
+    port: 8080
+    url: "[::0]"
+    cors: true
+  grpc:
+    port: 50051
+    url: "[::0]"
+    cors: true
+    web: true
+  auth: false
+  internal:
+    port: 50052
+    host: "[::1]"
+
+connections:
+  - name: banking_local
+    config: !LocalStorage
+      details:
+        path: ./data
+      tables:
+        - !Table
+          name: customers
+          prefix: customers
+          file_type: csv
+          extension: .csv
+        - !Table
+          name: credit_cards
+          prefix: credit_cards
+          file_type: csv
+          extension: .csv
+        - !Table
+          name: transactions
+          prefix: transactions
+          file_type: csv
+          extension: .csv
+
+sources:
+  - name: customers
+    table_name: customers
+    connection: banking_local
+  - name: credit_cards
+    table_name: credit_cards
+    connection: banking_local
+  - name: transactions
+    table_name: transactions
+    connection: banking_local
+
+sql: |
+  SELECT
+    t.customer_id,
+    t.category,
+    COUNT(t.transaction_id) AS tx_count,
+    SUM(t.amount) AS total_spend
+  INTO customer_spending_summary
+  FROM transactions t
+  GROUP BY t.customer_id, t.category;
+
+endpoints:
+  - name: customers
+    path: /customers
+    table_name: customers
+    index:
+      primary_key:
+        - customer_id
+  - name: credit_cards
+    path: /credit_cards
+    table_name: credit_cards
+    index:
+      primary_key:
+        - card_id
+  - name: transactions
+    path: /transactions
+    table_name: transactions
+    index:
+      primary_key:
+        - transaction_id
+  - name: customer_spending_summary
+    path: /customer_spending_summary
+    table_name: customer_spending_summary
+    index:
+      primary_key:
+        - customer_id
+        - category
