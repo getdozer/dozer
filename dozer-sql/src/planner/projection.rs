@@ -6,6 +6,7 @@ use crate::errors::PipelineError;
 use dozer_sql_expression::builder::ExpressionBuilder;
 use dozer_sql_expression::execution::Expression;
 use dozer_sql_expression::sqlparser::ast::{Expr, Ident, SelectItem};
+use dozer_sql_expression::udf_registry::UdfRegistry;
 use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::types::{FieldDefinition, Schema};
 use tokio::runtime::Runtime;
@@ -28,9 +29,33 @@ pub struct CommonPlanner<'a> {
     pub projection_output: Vec<Expression>,
     pub udfs: &'a [UdfConfig],
     pub runtime: Arc<Runtime>,
+    udf_registry: Option<UdfRegistry>,
 }
 
 impl<'a> CommonPlanner<'_> {
+    fn expression_builder(
+        &self,
+        offset: usize,
+        aggregations: Vec<Expression>,
+    ) -> ExpressionBuilder {
+        let builder = ExpressionBuilder::from(offset, aggregations, self.runtime.clone());
+        if let Some(registry) = &self.udf_registry {
+            builder.with_udf_registry(registry.clone())
+        } else {
+            builder
+        }
+    }
+
+    pub fn with_udf_registry(
+        input_schema: Schema,
+        udfs: &'a UdfRegistry,
+        runtime: Arc<Runtime>,
+    ) -> CommonPlanner<'a> {
+        let mut planner = Self::new(input_schema, udfs.configs(), runtime);
+        planner.udf_registry = Some(udfs.clone());
+        planner
+    }
+
     fn append_to_schema(
         expr: &Expression,
         alias: Option<String>,
@@ -76,9 +101,9 @@ impl<'a> CommonPlanner<'_> {
         };
 
         for (expr, alias) in expr_items {
-            let mut builder = ExpressionBuilder::new(
+            let mut builder = self.expression_builder(
                 self.input_schema.fields.len() + self.aggregation_output.len(),
-                self.runtime.clone(),
+                Vec::new(),
             );
             let projection_expression = builder
                 .build(true, &expr, &self.input_schema, self.udfs)
@@ -115,9 +140,9 @@ impl<'a> CommonPlanner<'_> {
         };
 
         for (expr, alias) in expr_items {
-            let mut builder = ExpressionBuilder::new(
+            let mut builder = self.expression_builder(
                 self.input_schema.fields.len() + self.aggregation_output.len(),
-                self.runtime.clone(),
+                Vec::new(),
             );
             let projection_expression = builder
                 .build(true, &expr, &self.input_schema, self.udfs)
@@ -146,10 +171,9 @@ impl<'a> CommonPlanner<'_> {
     }
 
     async fn add_having_item(&mut self, expr: Expr) -> Result<(), PipelineError> {
-        let mut builder = ExpressionBuilder::from(
+        let mut builder = self.expression_builder(
             self.input_schema.fields.len(),
             self.aggregation_output.clone(),
-            self.runtime.clone(),
         );
         let having_expression = builder
             .build(true, &expr, &self.input_schema, self.udfs)
@@ -179,9 +203,9 @@ impl<'a> CommonPlanner<'_> {
         let mut indexes = vec![];
         let mut set_pk = true;
         for expr in expr_items {
-            let mut builder = ExpressionBuilder::new(
+            let mut builder = self.expression_builder(
                 self.input_schema.fields.len() + self.aggregation_output.len(),
-                self.runtime.clone(),
+                Vec::new(),
             );
             let groupby_expression = builder
                 .build(false, &expr, &self.input_schema, self.udfs)
@@ -214,6 +238,9 @@ impl<'a> CommonPlanner<'_> {
         group_by: Vec<Expr>,
         having: Option<Expr>,
     ) -> Result<(), PipelineError> {
+        if let Some(registry) = &self.udf_registry {
+            registry.prepare()?;
+        }
         for expr in projection {
             self.add_select_item(expr).await?;
         }
@@ -243,6 +270,7 @@ impl<'a> CommonPlanner<'_> {
             projection_output: Vec::new(),
             udfs,
             runtime,
+            udf_registry: None,
         }
     }
 }

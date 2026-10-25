@@ -5,13 +5,14 @@ use dozer_core::{
     node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
+use dozer_sql_expression::udf_registry::UdfRegistry;
 use dozer_sql_expression::{
     builder::ExpressionBuilder,
     execution::Expression,
     sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Value},
 };
+use dozer_types::tonic::async_trait;
 use dozer_types::{errors::internal::BoxedError, types::Schema};
-use dozer_types::{models::udf_config::UdfConfig, tonic::async_trait};
 use tokio::runtime::Runtime;
 
 use crate::{
@@ -32,7 +33,7 @@ pub struct TableOperatorProcessorFactory {
     id: String,
     table: TableOperatorDescriptor,
     name: String,
-    udfs: Vec<UdfConfig>,
+    udfs: UdfRegistry,
     runtime: Arc<Runtime>,
 }
 
@@ -40,14 +41,14 @@ impl TableOperatorProcessorFactory {
     pub fn new(
         id: String,
         table: TableOperatorDescriptor,
-        udfs: Vec<UdfConfig>,
+        udfs: impl Into<UdfRegistry>,
         runtime: Arc<Runtime>,
     ) -> Self {
         Self {
             id: id.clone(),
             table,
             name: id,
-            udfs,
+            udfs: udfs.into(),
             runtime,
         }
     }
@@ -136,7 +137,7 @@ impl ProcessorFactory for TableOperatorProcessorFactory {
 pub(crate) async fn operator_from_descriptor(
     descriptor: &TableOperatorDescriptor,
     schema: &Schema,
-    udfs: &[UdfConfig],
+    udfs: &UdfRegistry,
     runtime: Arc<Runtime>,
 ) -> Result<Option<TableOperatorType>, PipelineError> {
     if &descriptor.name.to_uppercase() == "TTL" {
@@ -151,7 +152,7 @@ pub(crate) async fn operator_from_descriptor(
 async fn lifetime_from_descriptor(
     descriptor: &TableOperatorDescriptor,
     schema: &Schema,
-    udfs: &[UdfConfig],
+    udfs: &UdfRegistry,
     runtime: Arc<Runtime>,
 ) -> Result<LifetimeTableOperator, TableOperatorError> {
     let table_expression_arg =
@@ -243,7 +244,7 @@ async fn get_expression(
     function_name: String,
     interval_arg: &FunctionArg,
     schema: &Schema,
-    udfs: &[UdfConfig],
+    udfs: &UdfRegistry,
     runtime: Arc<Runtime>,
 ) -> Result<Expression, TableOperatorError> {
     match interval_arg {
@@ -256,7 +257,8 @@ async fn get_expression(
         }
         FunctionArg::Unnamed(arg_expr) => match arg_expr {
             FunctionArgExpr::Expr(expr) => {
-                let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime);
+                let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime)
+                    .with_udf_registry(udfs.clone());
                 let expression = builder
                     .build(false, expr, schema, udfs)
                     .await

@@ -5,16 +5,17 @@ use dozer_core::{
     node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
+use dozer_sql_expression::udf_registry::UdfRegistry;
 use dozer_sql_expression::{
     builder::ExpressionBuilder,
     execution::Expression,
     sqlparser::ast::{Expr, Ident, SelectItem},
 };
+use dozer_types::tonic::async_trait;
 use dozer_types::{
     errors::internal::BoxedError,
     types::{FieldDefinition, Schema},
 };
-use dozer_types::{models::udf_config::UdfConfig, tonic::async_trait};
 use tokio::runtime::Runtime;
 
 use crate::errors::PipelineError;
@@ -25,7 +26,7 @@ use super::processor::ProjectionProcessor;
 pub struct ProjectionProcessorFactory {
     select: Vec<SelectItem>,
     id: String,
-    udfs: Vec<UdfConfig>,
+    udfs: UdfRegistry,
     runtime: Arc<Runtime>,
 }
 
@@ -34,13 +35,13 @@ impl ProjectionProcessorFactory {
     pub fn _new(
         id: String,
         select: Vec<SelectItem>,
-        udfs: Vec<UdfConfig>,
+        udfs: impl Into<UdfRegistry>,
         runtime: Arc<Runtime>,
     ) -> Self {
         Self {
             select,
             id,
-            udfs,
+            udfs: udfs.into(),
             runtime,
         }
     }
@@ -151,18 +152,20 @@ impl ProcessorFactory for ProjectionProcessorFactory {
 pub(crate) async fn parse_sql_select_item(
     sql: &SelectItem,
     schema: &Schema,
-    udfs: &[UdfConfig],
+    udfs: &UdfRegistry,
     runtime: Arc<Runtime>,
 ) -> Result<(String, Expression), PipelineError> {
     match sql {
         SelectItem::UnnamedExpr(sql_expr) => {
             let expr = ExpressionBuilder::new(0, runtime)
+                .with_udf_registry(udfs.clone())
                 .parse_sql_expression(true, sql_expr, schema, udfs)
                 .await?;
             Ok((sql_expr.to_string(), expr))
         }
         SelectItem::ExprWithAlias { expr, alias } => {
             let expr = ExpressionBuilder::new(0, runtime)
+                .with_udf_registry(udfs.clone())
                 .parse_sql_expression(true, expr, schema, udfs)
                 .await?;
             Ok((alias.value.clone(), expr))

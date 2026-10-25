@@ -16,6 +16,7 @@ mod logical;
 mod mathematical;
 pub mod operator;
 pub mod scalar;
+pub mod udf_registry;
 
 #[cfg(feature = "javascript")]
 mod javascript;
@@ -23,6 +24,8 @@ mod javascript;
 mod onnx;
 #[cfg(feature = "python")]
 mod python_udf;
+#[cfg(feature = "wasm")]
+mod wasm;
 
 pub use num_traits;
 pub use sqlparser;

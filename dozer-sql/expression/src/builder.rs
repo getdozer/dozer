@@ -34,14 +34,26 @@ pub struct ExpressionBuilder {
     pub aggregations: Vec<Expression>,
     pub offset: usize,
     runtime: Arc<Runtime>,
+    udf_registry: Option<crate::udf_registry::UdfRegistry>,
 }
 
 impl ExpressionBuilder {
+    #[cfg(feature = "wasm")]
+    pub(crate) fn is_builtin_function(name: &str) -> bool {
+        AggregateFunctionType::new(name).is_some()
+            || ScalarFunctionType::new(name).is_some()
+            || GeoFunctionType::new(name).is_some()
+            || ConditionalExpressionType::new(name).is_some()
+            || DateTimeFunctionType::new(name).is_some()
+            || JsonFunctionType::new(name).is_some()
+            || name.starts_with("py_")
+    }
     pub fn new(offset: usize, runtime: Arc<Runtime>) -> Self {
         Self {
             aggregations: Vec::new(),
             offset,
             runtime,
+            udf_registry: None,
         }
     }
 
@@ -50,7 +62,13 @@ impl ExpressionBuilder {
             aggregations,
             offset,
             runtime,
+            udf_registry: None,
         }
+    }
+
+    pub fn with_udf_registry(mut self, registry: crate::udf_registry::UdfRegistry) -> Self {
+        self.udf_registry = Some(registry);
+        self
     }
 
     pub async fn build(
@@ -72,6 +90,9 @@ impl ExpressionBuilder {
         schema: &Schema,
         udfs: &[UdfConfig],
     ) -> Result<Expression, Error> {
+        if let Some(registry) = &self.udf_registry {
+            registry.prepare()?;
+        }
         match expression {
             SqlExpr::Trim {
                 expr,
@@ -534,6 +555,43 @@ impl ExpressionBuilder {
         let udf_type = udfs.iter().find(|udf| udf.name == function_name);
         if let Some(udf_type) = udf_type {
             return match &udf_type.config {
+                UdfType::Wasm(config) => {
+                    #[cfg(feature = "wasm")]
+                    {
+                        if sql_function.distinct
+                            || sql_function.over.is_some()
+                            || !sql_function.order_by.is_empty()
+                            || sql_function.return_type.is_some()
+                        {
+                            return Err(Error::UnsupportedExpression(SqlExpr::Function(
+                                sql_function.clone(),
+                            )));
+                        }
+                        let mut args = Vec::new();
+                        for argument in &sql_function.args {
+                            // A scalar ABI accepts positional expressions, not SQL wildcards.
+                            let FunctionArg::Unnamed(FunctionArgExpr::Expr(expr)) = argument else {
+                                return Err(Error::UnsupportedFunctionArg(argument.clone()));
+                            };
+                            args.push(self.parse_sql_expression(false, expr, schema, udfs).await?);
+                        }
+                        let udf = if let Some(registry) = &self.udf_registry {
+                            crate::wasm::Udf::bind(
+                                registry.wasm(&function_name, config)?,
+                                args,
+                                schema,
+                            )?
+                        } else {
+                            crate::wasm::Udf::new(function_name, config, args, schema)?
+                        };
+                        Ok(Expression::WasmUdf(udf))
+                    }
+                    #[cfg(not(feature = "wasm"))]
+                    {
+                        let _ = config;
+                        Err(Error::WasmNotEnabled)
+                    }
+                }
                 UdfType::Onnx(config) => {
                     #[cfg(feature = "onnx")]
                     {

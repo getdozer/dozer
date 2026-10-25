@@ -7,9 +7,11 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_sql_expression::builder::ExpressionBuilder;
+use dozer_sql_expression::execution::Expression;
 use dozer_sql_expression::sqlparser::ast::Expr as SqlExpr;
+use dozer_sql_expression::udf_registry::UdfRegistry;
+use dozer_types::tonic::async_trait;
 use dozer_types::{errors::internal::BoxedError, types::Schema};
-use dozer_types::{models::udf_config::UdfConfig, tonic::async_trait};
 use tokio::runtime::Runtime;
 
 use super::processor::SelectionProcessor;
@@ -18,7 +20,7 @@ use super::processor::SelectionProcessor;
 pub struct SelectionProcessorFactory {
     statement: SqlExpr,
     id: String,
-    udfs: Vec<UdfConfig>,
+    udfs: UdfRegistry,
     runtime: Arc<Runtime>,
 }
 
@@ -27,15 +29,24 @@ impl SelectionProcessorFactory {
     pub fn new(
         id: String,
         statement: SqlExpr,
-        udf_config: Vec<UdfConfig>,
+        udf_config: impl Into<UdfRegistry>,
         runtime: Arc<Runtime>,
     ) -> Self {
         Self {
             statement,
             id,
-            udfs: udf_config,
+            udfs: udf_config.into(),
             runtime,
         }
+    }
+
+    async fn expression(&self, schema: &Schema) -> Result<Expression, BoxedError> {
+        Ok(
+            ExpressionBuilder::new(schema.fields.len(), self.runtime.clone())
+                .with_udf_registry(self.udfs.clone())
+                .build(false, &self.statement, schema, &self.udfs)
+                .await?,
+        )
     }
 }
 
@@ -63,6 +74,8 @@ impl ProcessorFactory for SelectionProcessorFactory {
         let schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
+        // Validate WHERE UDF signatures during schema propagation as well as build.
+        self.expression(schema).await?;
         Ok(schema.clone())
     }
 
@@ -76,15 +89,9 @@ impl ProcessorFactory for SelectionProcessorFactory {
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
-        match ExpressionBuilder::new(schema.fields.len(), self.runtime.clone())
-            .build(false, &self.statement, schema, &self.udfs)
-            .await
-        {
-            Ok(expression) => Ok(Box::new(SelectionProcessor::new(
-                schema.clone(),
-                expression,
-            )?)),
-            Err(e) => Err(e.into()),
-        }
+        Ok(Box::new(SelectionProcessor::new(
+            schema.clone(),
+            self.expression(schema).await?,
+        )?))
     }
 }

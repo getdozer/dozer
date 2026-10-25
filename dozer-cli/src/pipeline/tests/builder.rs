@@ -88,3 +88,52 @@ fn load_multi_sources() {
     asm.get_endpoint(&config.sources[0].name).unwrap();
     asm.get_endpoint(&config.sources[1].name).unwrap();
 }
+
+#[test]
+fn invalid_unused_udf_fails_before_connector_setup_with_or_without_sql() {
+    use dozer_types::models::udf_config::{UdfConfig, UdfType, WasmConfig};
+    let runtime = Arc::new(
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap(),
+    );
+    let dir = tempfile::tempdir().unwrap();
+    for sql in [
+        None,
+        Some("SELECT id INTO output FROM grpc_conn_users".into()),
+    ] {
+        let mut config = get_default_config();
+        config.sql = sql;
+        // A source referencing a missing connection would fail discovery if reached.
+        config.connections.clear();
+        config.udfs = vec![UdfConfig {
+            name: "unused_function".into(),
+            config: UdfType::Wasm(WasmConfig {
+                path: dir.path().join("missing.wasm").to_str().unwrap().into(),
+            }),
+        }];
+        let builder = PipelineBuilder::new(
+            &config.connections,
+            &config.sources,
+            config.sql.as_deref(),
+            &config.sinks,
+            Default::default(),
+            Flags::default(),
+            &config.udfs,
+        );
+        let (_sender, receiver) = shutdown::new(&runtime);
+        let error = runtime
+            .block_on(builder.build(&runtime, receiver))
+            .err()
+            .unwrap()
+            .to_string();
+        #[cfg(feature = "wasm")]
+        assert!(
+            error.contains("cannot initialize WASM UDF unused_function"),
+            "{error}"
+        );
+        #[cfg(not(feature = "wasm"))]
+        assert!(error.contains("requires the wasm Cargo feature"), "{error}");
+    }
+}

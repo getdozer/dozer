@@ -1,0 +1,25 @@
+version: 1
+app_name: wasm-udf-example
+home_dir: .dozer
+connections:
+  - name: input
+    config: !Webhook
+      host: 127.0.0.1
+      port: 18765
+      endpoints:
+        - path: /numbers
+          verbs: [POST, DELETE]
+          schema: !Inline |
+            {"numbers":{"schema":{"fields":[{"name":"a","typ":"Int","nullable":true},{"name":"b","typ":"Int","nullable":true}]}}}
+sources:
+  - name: numbers
+    table_name: numbers
+    connection: input
+sinks:
+  - name: output
+    config: !Dummy
+      table_name: computed
+udfs:
+  wasm:
+    my_function: udfs/wasm/my_function
+sql: SELECT my_function(a, b) AS sum INTO computed FROM numbers;

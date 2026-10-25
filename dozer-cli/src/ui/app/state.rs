@@ -306,7 +306,7 @@ pub async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, Orchestration
         &dozer.config.sinks,
         Default::default(),
         Flags::default(),
-        &dozer.config.udfs,
+        dozer.udf_registry(),
     );
     let (_shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
     builder.build(&dozer.runtime, shutdown_receiver).await

@@ -24,10 +24,11 @@ use crate::console_helper::PURPLE;
 use crate::console_helper::RED;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::{get_connector, SourceSchema, TableInfo};
-use dozer_sql::builder::statement_to_pipeline;
+use dozer_sql::builder::{statement_to_pipeline, UdfRegistry};
 use dozer_sql::errors::PipelineError;
 use dozer_types::log::info;
 use dozer_types::models::config::{default_home_dir, Config};
+use dozer_types::parking_lot::Mutex;
 use dozer_types::tracing::error;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
@@ -38,12 +39,26 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::sync::oneshot;
 
-#[derive(Clone)]
 pub struct SimpleOrchestrator {
     pub base_directory: Utf8PathBuf,
     pub config: Config,
     pub runtime: Arc<Runtime>,
     pub labels: DozerMonitorContext,
+    udfs: Mutex<UdfRegistry>,
+}
+
+impl Clone for SimpleOrchestrator {
+    fn clone(&self) -> Self {
+        Self {
+            base_directory: self.base_directory.clone(),
+            config: self.config.clone(),
+            runtime: self.runtime.clone(),
+            labels: self.labels.clone(),
+            // Share the immutable snapshot, but not a mutable cache slot: changing
+            // one clone's public config must not invalidate another clone's cache.
+            udfs: Mutex::new(self.udfs.lock().clone()),
+        }
+    }
 }
 
 impl SimpleOrchestrator {
@@ -53,12 +68,24 @@ impl SimpleOrchestrator {
         runtime: Arc<Runtime>,
         labels: DozerMonitorContext,
     ) -> Self {
+        let udfs = Mutex::new(UdfRegistry::from(config.udfs.clone()));
         Self {
             base_directory,
             config,
             runtime,
             labels,
+            udfs,
         }
+    }
+
+    // Builds, schema propagation and execution share one immutable module snapshot.
+    // A changed configuration gets a new registry, never a mismatched old module set.
+    pub(crate) fn udf_registry(&self) -> UdfRegistry {
+        let mut registry = self.udfs.lock();
+        if registry.configs() != self.config.udfs.as_slice() {
+            *registry = UdfRegistry::from(self.config.udfs.clone());
+        }
+        registry.clone()
     }
 
     pub fn home_dir(&self) -> Utf8PathBuf {
@@ -85,7 +112,7 @@ impl SimpleOrchestrator {
             self.config.sql.as_deref(),
             &self.config.sinks,
             self.labels.clone(),
-            &self.config.udfs,
+            self.udf_registry(),
         )
         .await?;
         let dag_executor = executor
@@ -172,7 +199,7 @@ impl SimpleOrchestrator {
             &self.config.sinks,
             self.labels.clone(),
             self.config.flags.clone(),
-            &self.config.udfs,
+            self.udf_registry(),
         );
         let dag = builder.build(&self.runtime, shutdown).await?;
         // Populate schemas.
@@ -274,4 +301,62 @@ pub fn validate_sql(sql: String, runtime: Arc<Runtime>) -> Result<(), PipelineEr
 
 pub fn lockfile_path(base_directory: Utf8PathBuf) -> Utf8PathBuf {
     base_directory.join(LOCK_FILE)
+}
+
+#[cfg(all(test, feature = "wasm"))]
+mod wasm_tests {
+    use super::*;
+    use dozer_types::models::udf_config::{UdfConfig, UdfType, WasmConfig};
+
+    #[test]
+    fn clones_retain_snapshots_when_one_configuration_changes() {
+        let directory = tempfile::tempdir().unwrap();
+        let module = directory.path().join("my_function.wasm");
+        fs::write(
+            &module,
+            include_bytes!("../../../examples/wasm-udf/udfs/wasm/my_function.wasm"),
+        )
+        .unwrap();
+        let config = Config {
+            udfs: vec![UdfConfig {
+                name: "my_function".into(),
+                config: UdfType::Wasm(WasmConfig {
+                    path: module.to_str().unwrap().into(),
+                }),
+            }],
+            ..Default::default()
+        };
+        let runtime = Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap(),
+        );
+        let original = SimpleOrchestrator::new(
+            Utf8PathBuf::from_path_buf(directory.path().to_owned()).unwrap(),
+            config.clone(),
+            runtime.clone(),
+            Default::default(),
+        );
+        original.udf_registry().prepare().unwrap();
+        let mut changed = original.clone();
+        let active_snapshot = changed.udf_registry();
+        fs::remove_file(&module).unwrap();
+        changed.udf_registry().prepare().unwrap();
+        if let UdfType::Wasm(wasm) = &mut changed.config.udfs[0].config {
+            wasm.path.push_str("-other");
+        }
+        assert!(changed.udf_registry().prepare().is_err());
+        // Neither the original application nor an active old pipeline may reload.
+        original.udf_registry().prepare().unwrap();
+        original.clone().udf_registry().prepare().unwrap();
+        active_snapshot.prepare().unwrap();
+        let independent = SimpleOrchestrator::new(
+            original.base_directory.clone(),
+            config,
+            runtime,
+            Default::default(),
+        );
+        assert!(independent.udf_registry().prepare().is_err());
+    }
 }

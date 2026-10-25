@@ -7,8 +7,8 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_sql_expression::sqlparser::ast::{Expr, SelectItem};
+use dozer_sql_expression::udf_registry::UdfRegistry;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::tonic::async_trait;
 use dozer_types::types::Schema;
@@ -23,7 +23,7 @@ pub struct AggregationProcessorFactory {
     group_by: Vec<Expr>,
     having: Option<Expr>,
     enable_probabilistic_optimizations: bool,
-    udfs: Vec<UdfConfig>,
+    udfs: UdfRegistry,
     runtime: Arc<Runtime>,
 
     /// Type name can only be determined after schema propagation.
@@ -37,7 +37,7 @@ impl AggregationProcessorFactory {
         group_by: Vec<Expr>,
         having: Option<Expr>,
         enable_probabilistic_optimizations: bool,
-        udfs: Vec<UdfConfig>,
+        udfs: impl Into<UdfRegistry>,
         runtime: Arc<Runtime>,
     ) -> Self {
         Self {
@@ -46,7 +46,7 @@ impl AggregationProcessorFactory {
             group_by,
             having,
             enable_probabilistic_optimizations,
-            udfs,
+            udfs: udfs.into(),
             runtime,
             type_name: Mutex::new(None),
         }
@@ -54,7 +54,7 @@ impl AggregationProcessorFactory {
 
     async fn get_planner(&self, input_schema: Schema) -> Result<CommonPlanner, PipelineError> {
         let mut projection_planner =
-            CommonPlanner::new(input_schema, self.udfs.as_slice(), self.runtime.clone());
+            CommonPlanner::with_udf_registry(input_schema, &self.udfs, self.runtime.clone());
         projection_planner
             .plan(
                 self.projection.clone(),

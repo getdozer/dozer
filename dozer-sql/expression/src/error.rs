@@ -12,6 +12,8 @@ use crate::{aggregate::AggregateFunctionType, operator::BinaryOperatorType};
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("UDF initialization failed: {0}")]
+    UdfInitialization(#[source] std::sync::Arc<crate::udf_registry::InitializationError>),
     #[error("Unsupported SQL expression: {0:?}")]
     UnsupportedExpression(Expr),
     #[error("Unsupported SQL function arg: {0:?}")]
@@ -104,6 +106,12 @@ pub enum Error {
 
     #[error("Javascript is not enabled")]
     JavaScriptNotEnabled,
+
+    #[error("WASM UDF support requires the wasm Cargo feature")]
+    WasmNotEnabled,
+    #[cfg(feature = "wasm")]
+    #[error("WASM UDF error: {0}")]
+    Wasm(#[from] crate::wasm::Error),
 
     #[cfg(feature = "javascript")]
     #[error("JavaScript UDF error: {0}")]

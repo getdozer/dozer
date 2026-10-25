@@ -6,8 +6,8 @@ use tokio::runtime::Runtime;
 
 use std::sync::Arc;
 
+use dozer_sql::builder::UdfRegistry;
 use dozer_types::models::source::Source;
-use dozer_types::models::udf_config::UdfConfig;
 
 use crate::pipeline::PipelineBuilder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
@@ -22,7 +22,7 @@ pub struct Executor<'a> {
     sql: Option<&'a str>,
     sinks: &'a [Sink],
     labels: DozerMonitorContext,
-    udfs: &'a [UdfConfig],
+    udfs: UdfRegistry,
 }
 
 impl<'a> Executor<'a> {
@@ -35,7 +35,7 @@ impl<'a> Executor<'a> {
         sql: Option<&'a str>,
         sinks: &'a [Sink],
         labels: DozerMonitorContext,
-        udfs: &'a [UdfConfig],
+        udfs: impl Into<UdfRegistry>,
     ) -> Result<Executor<'a>, OrchestrationError> {
         Ok(Executor {
             connections,
@@ -43,7 +43,7 @@ impl<'a> Executor<'a> {
             sql,
             sinks,
             labels,
-            udfs,
+            udfs: udfs.into(),
         })
     }
 

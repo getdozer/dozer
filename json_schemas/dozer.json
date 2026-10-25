@@ -97,11 +97,18 @@
       ]
     },
     "udfs": {
-      "description": "UDF specific configuration (eg. !Onnx)",
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/UdfConfig"
-      }
+      "description": "UDF configuration: a tagged/explicit-type list or a wasm function-to-path mapping.",
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/UdfEntry"
+          }
+        },
+        {
+          "$ref": "#/definitions/WasmMapping"
+        }
+      ]
     },
     "version": {
       "type": "integer",
@@ -1062,6 +1069,26 @@
           "minimum": 0.0
         }
       }
+    },
+    "ExplicitWasmUdf": {
+      "type": "object",
+      "required": [
+        "config",
+        "name",
+        "type"
+      ],
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/WasmConfig"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/WasmKind"
+        }
+      },
+      "additionalProperties": false
     },
     "Flags": {
       "type": "object",
@@ -2059,6 +2086,16 @@
       },
       "additionalProperties": false
     },
+    "UdfEntry": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/UdfConfig"
+        },
+        {
+          "$ref": "#/definitions/ExplicitWasmUdf"
+        }
+      ]
+    },
     "UdfType": {
       "oneOf": [
         {
@@ -2084,8 +2121,54 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Wasm"
+          ],
+          "properties": {
+            "Wasm": {
+              "$ref": "#/definitions/WasmConfig"
+            }
+          },
+          "additionalProperties": false
         }
       ]
+    },
+    "WasmConfig": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "description": "Local module path, relative to the process working directory. The .wasm extension may be omitted.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "WasmKind": {
+      "type": "string",
+      "enum": [
+        "wasm"
+      ]
+    },
+    "WasmMapping": {
+      "type": "object",
+      "required": [
+        "wasm"
+      ],
+      "properties": {
+        "wasm": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "WebhookConfig": {
       "examples": [

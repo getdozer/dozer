@@ -7,7 +7,7 @@ use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql_expression::builder::{ExpressionBuilder, NameOrAlias};
 use dozer_sql_expression::sqlparser::ast::{SetOperator, SetQuantifier, TableFactor};
-use dozer_types::models::udf_config::UdfConfig;
+pub use dozer_sql_expression::udf_registry::UdfRegistry;
 
 use dozer_sql_expression::sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
@@ -51,7 +51,7 @@ pub struct QueryContext {
     processor_counter: usize,
 
     // Udf related configs
-    udfs: Vec<UdfConfig>,
+    udfs: UdfRegistry,
 
     // The tokio runtime
     runtime: Arc<Runtime>,
@@ -63,14 +63,14 @@ impl QueryContext {
         self.processor_counter
     }
 
-    pub fn new(udfs: Vec<UdfConfig>, runtime: Arc<Runtime>) -> Self {
+    pub fn new(udfs: impl Into<UdfRegistry>, runtime: Arc<Runtime>) -> Self {
         QueryContext {
             pipeline_map: Default::default(),
             output_tables_map: Default::default(),
             used_sources: Default::default(),
             processors_list: Default::default(),
             processor_counter: Default::default(),
-            udfs,
+            udfs: udfs.into(),
             runtime,
         }
     }
@@ -80,11 +80,12 @@ pub fn statement_to_pipeline(
     sql: &str,
     pipeline: &mut AppPipeline,
     override_name: Option<String>,
-    udfs: Vec<UdfConfig>,
+    udfs: impl Into<UdfRegistry>,
     runtime: Arc<Runtime>,
 ) -> Result<QueryContext, PipelineError> {
     let dialect = DozerDialect {};
     let mut ctx = QueryContext::new(udfs, runtime);
+    ctx.udfs.prepare()?;
     let is_top_select = true;
     let ast = Parser::parse_sql(&dialect, sql)
         .map_err(|err| PipelineError::InternalError(Box::new(err)))?;

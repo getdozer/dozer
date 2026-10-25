@@ -1,0 +1,11 @@
+{
+  "name": "dozer-wasm-udf-example",
+  "private": true,
+  "scripts": {
+    "build": "asc assembly/my_function.ts --outFile udfs/wasm/my_function.wasm --optimize --runtime stub",
+    "build:primitives": "asc assembly/primitives.ts --outFile udfs/wasm/primitives.wasm --optimize --runtime stub"
+  },
+  "devDependencies": {
+    "assemblyscript": "0.27.31"
+  }
+}

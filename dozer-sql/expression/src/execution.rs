@@ -20,6 +20,8 @@ use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
+    #[cfg(feature = "wasm")]
+    WasmUdf(crate::wasm::Udf),
     Column {
         index: usize,
     },
@@ -285,6 +287,8 @@ impl Expression {
             }
             #[cfg(feature = "javascript")]
             Expression::JavaScriptUdf(udf) => udf.to_string(schema),
+            #[cfg(feature = "wasm")]
+            Expression::WasmUdf(udf) => udf.to_string(schema),
             Expression::IsNull { arg } => arg.to_string(schema) + " IS NULL ",
             Expression::IsNotNull { arg } => arg.to_string(schema) + " IS NOT NULL ",
         }
@@ -378,6 +382,8 @@ impl Expression {
             Expression::IsNotNull { arg } => evaluate_is_not_null(schema, arg, record),
             #[cfg(feature = "javascript")]
             Expression::JavaScriptUdf(udf) => udf.evaluate(record, schema),
+            #[cfg(feature = "wasm")]
+            Expression::WasmUdf(udf) => udf.evaluate(record, schema),
         }
     }
 
@@ -487,6 +493,8 @@ impl Expression {
             )),
             #[cfg(feature = "javascript")]
             Expression::JavaScriptUdf(udf) => Ok(udf.get_type()),
+            #[cfg(feature = "wasm")]
+            Expression::WasmUdf(udf) => Ok(udf.get_type()),
             Expression::IsNull { arg: _ } => Ok(ExpressionType::new(
                 FieldType::Boolean,
                 false,

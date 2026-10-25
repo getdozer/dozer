@@ -9,6 +9,7 @@ use dozer_core::node::SinkFactory;
 use dozer_core::shutdown::ShutdownReceiver;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql::builder::statement_to_pipeline;
+use dozer_sql::builder::UdfRegistry;
 use dozer_sql::builder::{OutputNodeInfo, QueryContext};
 use dozer_tracing::DozerMonitorContext;
 use dozer_types::log::debug;
@@ -18,7 +19,6 @@ use dozer_types::models::flags::Flags;
 use dozer_types::models::sink::Sink;
 use dozer_types::models::sink::SinkConfig;
 use dozer_types::models::source::Source;
-use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::types::PortHandle;
 use std::hash::Hash;
 use tokio::runtime::Runtime;
@@ -54,7 +54,7 @@ pub struct PipelineBuilder<'a> {
     sinks: &'a [Sink],
     labels: DozerMonitorContext,
     flags: Flags,
-    udfs: &'a [UdfConfig],
+    udfs: UdfRegistry,
 }
 
 impl<'a> PipelineBuilder<'a> {
@@ -65,7 +65,7 @@ impl<'a> PipelineBuilder<'a> {
         sinks: &'a [Sink],
         labels: DozerMonitorContext,
         flags: Flags,
-        udfs: &'a [UdfConfig],
+        udfs: impl Into<UdfRegistry>,
     ) -> Self {
         Self {
             connections,
@@ -74,7 +74,7 @@ impl<'a> PipelineBuilder<'a> {
             sinks,
             labels,
             flags,
-            udfs,
+            udfs: udfs.into(),
         }
     }
 
@@ -131,6 +131,9 @@ impl<'a> PipelineBuilder<'a> {
         &self,
         runtime: Arc<Runtime>,
     ) -> Result<CalculatedSources, OrchestrationError> {
+        self.udfs
+            .prepare()
+            .map_err(|error| OrchestrationError::PipelineError(error.into()))?;
         let mut original_sources = vec![];
 
         let mut query_ctx = None;
@@ -140,7 +143,7 @@ impl<'a> PipelineBuilder<'a> {
 
         if let Some(sql) = &self.sql {
             let query_context =
-                statement_to_pipeline(sql, &mut pipeline, None, self.udfs.to_vec(), runtime)
+                statement_to_pipeline(sql, &mut pipeline, None, self.udfs.clone(), runtime)
                     .map_err(OrchestrationError::PipelineError)?;
 
             query_ctx = Some(query_context.clone());
@@ -205,14 +208,9 @@ impl<'a> PipelineBuilder<'a> {
         }
 
         if let Some(sql) = &self.sql {
-            let query_context = statement_to_pipeline(
-                sql,
-                &mut pipeline,
-                None,
-                self.udfs.to_vec(),
-                runtime.clone(),
-            )
-            .map_err(OrchestrationError::PipelineError)?;
+            let query_context =
+                statement_to_pipeline(sql, &mut pipeline, None, self.udfs.clone(), runtime.clone())
+                    .map_err(OrchestrationError::PipelineError)?;
 
             for (name, table_info) in query_context.output_tables_map {
                 available_output_tables

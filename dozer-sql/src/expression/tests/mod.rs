@@ -12,3 +12,4 @@ mod number;
 mod point;
 mod string;
 mod test_common;
+mod wasm;
