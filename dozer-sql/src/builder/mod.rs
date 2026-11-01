@@ -2,6 +2,7 @@ use crate::aggregation::factory::AggregationProcessorFactory;
 use crate::builder::PipelineError::InvalidQuery;
 use crate::errors::PipelineError;
 use crate::selection::factory::SelectionProcessorFactory;
+use crate::selection::membership::MembershipFactory;
 use dozer_core::app::AppPipeline;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -293,15 +294,36 @@ fn select_to_pipeline(
     pipeline.add_processor(Box::new(aggregation), gen_agg_name.clone());
 
     // Where clause
-    if let Some(selection) = select.selection {
-        let selection = SelectionProcessorFactory::new(
-            gen_selection_name.clone(),
-            selection,
-            query_ctx.udfs.clone(),
-            query_ctx.runtime.clone(),
-        );
-
-        pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
+    if let Some(mut selection) = select.selection {
+        let mut probes = Vec::new();
+        lower_membership_subqueries(
+            &mut selection,
+            &mut probes,
+            &gen_selection_name,
+            pipeline,
+            query_ctx,
+            pipeline_idx,
+        )?;
+        if probes.is_empty() {
+            let selection = SelectionProcessorFactory::new(
+                gen_selection_name.clone(),
+                selection,
+                query_ctx.udfs.clone(),
+                query_ctx.runtime.clone(),
+            );
+            pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
+        } else {
+            pipeline.add_processor(
+                Box::new(MembershipFactory {
+                    id: gen_selection_name.clone(),
+                    predicate: selection,
+                    probes,
+                    udfs: query_ctx.udfs.clone(),
+                    runtime: query_ctx.runtime.clone(),
+                }),
+                gen_selection_name.clone(),
+            );
+        }
 
         pipeline.connect_nodes(
             gen_product_name,
@@ -358,6 +380,66 @@ fn select_to_pipeline(
     }
 
     Ok(gen_agg_name)
+}
+
+fn lower_membership_subqueries(
+    expr: &mut dozer_sql_expression::sqlparser::ast::Expr,
+    probes: &mut Vec<(dozer_sql_expression::sqlparser::ast::Expr, bool, String)>,
+    node: &str,
+    pipeline: &mut AppPipeline,
+    ctx: &mut QueryContext,
+    pipeline_idx: usize,
+) -> Result<(), PipelineError> {
+    use dozer_sql_expression::sqlparser::ast::{Expr, Ident};
+    match expr {
+        Expr::InSubquery {
+            expr: lhs,
+            subquery,
+            negated,
+        } => {
+            let port = PortHandle::try_from(probes.len() + 1)
+                .map_err(|_| InvalidQuery("Too many IN subqueries".into()))?;
+            if port == DEFAULT_PORT_HANDLE {
+                return Err(InvalidQuery("Too many IN subqueries".into()));
+            }
+            let name = format!("__membership_{}", ctx.get_next_processor_id());
+            let table_name = format!("membership-query--{}", ctx.get_next_processor_id());
+            // Child CTEs must not escape into the enclosing query's name scope.
+            let tables = ctx.pipeline_map.clone();
+            let outputs = ctx.output_tables_map.clone();
+            let result = query_to_pipeline(
+                TableInfo {
+                    name: NameOrAlias(table_name.clone(), None),
+                    override_name: None,
+                },
+                *subquery.clone(),
+                pipeline,
+                ctx,
+                pipeline_idx,
+                false,
+            );
+            let output = ctx.pipeline_map.get(&(pipeline_idx, table_name)).cloned();
+            ctx.pipeline_map = tables;
+            ctx.output_tables_map = outputs;
+            result?;
+            let output = output.ok_or_else(|| InvalidQuery("Missing IN subquery output".into()))?;
+            pipeline.connect_nodes(output.node, output.port, node.to_string(), port);
+            probes.push((*lhs.clone(), *negated, name.clone()));
+            *expr = Expr::Identifier(Ident::new(name));
+        }
+        Expr::BinaryOp { left, right, .. } => {
+            lower_membership_subqueries(left, probes, node, pipeline, ctx, pipeline_idx)?;
+            lower_membership_subqueries(right, probes, node, pipeline, ctx, pipeline_idx)?;
+        }
+        Expr::Nested(inner)
+        | Expr::UnaryOp { expr: inner, .. }
+        | Expr::IsNull(inner)
+        | Expr::IsNotNull(inner) => {
+            lower_membership_subqueries(inner, probes, node, pipeline, ctx, pipeline_idx)?;
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]

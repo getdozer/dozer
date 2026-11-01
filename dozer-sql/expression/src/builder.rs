@@ -219,9 +219,27 @@ impl ExpressionBuilder {
             .collect();
 
         match matching_by_field.len() {
-            1 => Ok(Expression::Column {
-                index: matching_by_field[0].0,
-            }),
+            1 => {
+                let (index, field) = matching_by_field[0];
+                if let Some(qualifier) = src_table_or_alias {
+                    let valid = match &field.source {
+                        SourceDefinition::Alias { name } => {
+                            name == qualifier && src_connection.is_none()
+                        }
+                        SourceDefinition::Table { name, connection } => {
+                            name == qualifier
+                                && src_connection
+                                    .map(|expected| expected == connection)
+                                    .unwrap_or(true)
+                        }
+                        SourceDefinition::Dynamic => true,
+                    };
+                    if !valid {
+                        return Err(Error::InvalidIdent(ident.to_vec()));
+                    }
+                }
+                Ok(Expression::Column { index })
+            }
             _ => match src_table_or_alias {
                 None => Err(Error::InvalidIdent(ident.to_vec())),
                 Some(src_table_or_alias) => {
