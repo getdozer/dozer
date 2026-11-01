@@ -292,6 +292,51 @@ fn evaluate_predicate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn random_event_order_matches_multiset_model(
+            negated in any::<bool>(),
+            events in proptest::collection::vec((any::<bool>(), any::<bool>(), proptest::option::of(0i64..5)), 1..60)
+        ) {
+            let mut p = processor(negated);
+            let mut outer = Vec::new();
+            let mut inner = Vec::new();
+            let mut visible = Vec::new();
+            for (outer_event, inserting, value) in events {
+                let target = if outer_event { &mut outer } else { &mut inner };
+                if inserting { target.push(value); }
+                else if let Some(index) = target.iter().position(|item| *item == value) { target.remove(index); }
+                else { continue; }
+                let record = row(value.map(Field::Int).unwrap_or(Field::Null));
+                let operation = if inserting { Operation::Insert { new: record } } else { Operation::Delete { old: record } };
+                for operation in send(&mut p, if outer_event { DEFAULT_PORT_HANDLE } else { 1 }, operation) {
+                    match operation {
+                        Operation::Insert { new } => visible.push(new.values[0].clone()),
+                        Operation::Delete { old } => {
+                            let index = visible.iter().position(|value| *value == old.values[0]).expect("retraction must exist");
+                            visible.remove(index);
+                        }
+                        _ => panic!("insert/delete inputs must not emit another operation"),
+                    }
+                }
+                let mut expected: Vec<_> = outer.iter().filter(|value| {
+                    let matched = value.is_some() && inner.contains(value);
+                    if matched { !negated }
+                    else if inner.is_empty() { negated }
+                    else if value.is_none() || inner.contains(&None) { false }
+                    else { negated }
+                }).copied().collect();
+                let mut actual: Vec<_> = visible.iter().map(|value| match value {
+                    Field::Null => None, Field::Int(value) => Some(*value), _ => panic!("unexpected output type"),
+                }).collect();
+                actual.sort();
+                expected.sort();
+                prop_assert_eq!(actual, expected);
+            }
+        }
+    }
 
     #[derive(Default)]
     struct Output(Vec<Operation>);
@@ -507,6 +552,28 @@ mod tests {
         };
         assert!(p.matches(&int(1)).unwrap());
     }
+
+    #[test]
+    fn negated_comparison_of_unknown_membership_stays_unknown() {
+        use dozer_sql_expression::operator::UnaryOperatorType;
+        let mut p = processor(false);
+        send(
+            &mut p,
+            1,
+            Operation::Insert {
+                new: row(Field::Null),
+            },
+        );
+        p.predicate = Expression::UnaryOperator {
+            operator: UnaryOperatorType::Not,
+            arg: Box::new(Expression::BinaryOperator {
+                left: Box::new(Expression::Column { index: 1 }),
+                operator: BinaryOperatorType::Eq,
+                right: Box::new(Expression::Literal(Field::Boolean(false))),
+            }),
+        };
+        assert!(!p.matches(&int(1)).unwrap());
+    }
     #[test]
     fn mixed_numeric_members_use_existing_sql_comparison() {
         let mut p = processor(false);
@@ -540,6 +607,52 @@ mod tests {
         assert_eq!(
             send(&mut p, DEFAULT_PORT_HANDLE, insert(1)),
             vec![insert(1)]
+        );
+    }
+
+    #[test]
+    fn failed_inner_batch_rolls_back_without_touching_outer_rows() {
+        let mut p = processor(false);
+        send(&mut p, DEFAULT_PORT_HANDLE, insert(1));
+        let mut output = Output::default();
+        let result = p.process(
+            TableOperation::without_id(
+                Operation::BatchInsert {
+                    new: vec![int(1), Record::new(vec![])],
+                },
+                1,
+            ),
+            &mut output,
+        );
+        assert!(result.is_err());
+        assert!(p.inner[0].is_empty());
+        assert_eq!(p.outer, vec![int(1)]);
+        assert!(output.0.is_empty());
+        assert_eq!(send(&mut p, 1, insert(1)), vec![insert(1)]);
+    }
+
+    #[test]
+    fn failed_outer_update_keeps_original_row_without_a_snapshot() {
+        let mut p = processor(false);
+        send(&mut p, 1, insert(1));
+        send(&mut p, DEFAULT_PORT_HANDLE, insert(1));
+        let mut output = Output::default();
+        let result = p.process(
+            TableOperation::without_id(
+                Operation::Update {
+                    old: int(1),
+                    new: Record::new(vec![]),
+                },
+                DEFAULT_PORT_HANDLE,
+            ),
+            &mut output,
+        );
+        assert!(result.is_err());
+        assert_eq!(p.outer, vec![int(1)]);
+        assert!(output.0.is_empty());
+        assert_eq!(
+            send(&mut p, DEFAULT_PORT_HANDLE, delete(1)),
+            vec![delete(1)]
         );
     }
 
@@ -632,10 +745,8 @@ impl MembershipProcessor {
             if index >= self.inner.len() {
                 return Err(PipelineError::InvalidPortHandle(port).into());
             }
-            let rows = self.outer.clone();
-            let before = rows
-                .iter()
-                .map(|row| self.matches(row))
+            let before = (0..self.outer.len())
+                .map(|index| self.matches(&self.outer[index].clone()))
                 .collect::<Result<Vec<_>, _>>()?;
             match op {
                 Operation::Insert { new } => self.adjust_inner(index, new, true)?,
@@ -651,7 +762,8 @@ impl MembershipProcessor {
                 }
             }
             let mut changes = Vec::new();
-            for (row, before) in rows.into_iter().zip(before) {
+            for (index, before) in before.into_iter().enumerate() {
+                let row = self.outer[index].clone();
                 match (before, self.matches(&row)?) {
                     (false, true) => changes.push(Operation::Insert { new: row }),
                     (true, false) => changes.push(Operation::Delete { old: row }),
@@ -672,13 +784,27 @@ impl Processor for MembershipProcessor {
         op: TableOperation,
         forwarder: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        let previous_outer = self.outer.clone();
-        let previous_inner = self.inner.clone();
+        // Single outer changes evaluate before mutation; only a batch can need rollback.
+        let previous_outer =
+            if op.port == DEFAULT_PORT_HANDLE && matches!(&op.op, Operation::BatchInsert { .. }) {
+                Some(self.outer.clone())
+            } else {
+                None
+            };
+        let previous_inner = if op.port != DEFAULT_PORT_HANDLE {
+            Some(self.inner.clone())
+        } else {
+            None
+        };
         let output = match self.apply(op.port, op.op) {
             Ok(output) => output,
             Err(error) => {
-                self.outer = previous_outer;
-                self.inner = previous_inner;
+                if let Some(outer) = previous_outer {
+                    self.outer = outer;
+                }
+                if let Some(inner) = previous_inner {
+                    self.inner = inner;
+                }
                 return Err(error);
             }
         };

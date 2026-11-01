@@ -11,6 +11,11 @@ on either side emit the corresponding inserts, updates or deletions. Batch
 inserts are supported. Failed operations roll back retained state before any
 output is forwarded.
 
+Single outer-row changes evaluate before mutating retained state. Rollback
+snapshots are needed only for outer batches and inner-input changes; ordinary
+outer inserts do not copy the complete retained collection. Inner rescans clone
+one row at a time rather than cloning all retained rows together.
+
 Membership uses existing SQL equality coercion for non-null values. A matching
 value wins over NULL; otherwise NULL in a nonempty set makes membership unknown.
 The empty set returns false for IN and true for NOT IN, including a NULL probe.
