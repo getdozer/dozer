@@ -21,6 +21,7 @@ use tokio::sync::mpsc::Sender;
 
 use std::collections::HashMap;
 use std::future::pending;
+use std::sync::{Arc, Mutex};
 
 use crate::builder::statement_to_pipeline;
 use crate::tests::utils::create_test_runtime;
@@ -143,11 +144,15 @@ impl Source for TestSource {
 #[derive(Debug)]
 pub struct TestSinkFactory {
     input_ports: Vec<PortHandle>,
+    recorded: Option<Arc<Mutex<Vec<TableOperation>>>>,
 }
 
 impl TestSinkFactory {
     pub fn new(input_ports: Vec<PortHandle>) -> Self {
-        Self { input_ports }
+        Self {
+            input_ports,
+            recorded: None,
+        }
     }
 }
 
@@ -166,7 +171,9 @@ impl SinkFactory for TestSinkFactory {
         _input_schemas: HashMap<PortHandle, Schema>,
         _event_hub: EventHub,
     ) -> Result<Box<dyn Sink>, BoxedError> {
-        Ok(Box::new(TestSink {}))
+        Ok(Box::new(TestSink {
+            recorded: self.recorded.clone(),
+        }))
     }
 
     fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
@@ -179,11 +186,16 @@ impl SinkFactory for TestSinkFactory {
 }
 
 #[derive(Debug)]
-pub struct TestSink {}
+pub struct TestSink {
+    recorded: Option<Arc<Mutex<Vec<TableOperation>>>>,
+}
 
 impl Sink for TestSink {
     fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
         println!("Sink: {:?}", op);
+        if let Some(recorded) = &self.recorded {
+            recorded.lock().unwrap().push(op);
+        }
         Ok(())
     }
 
@@ -216,6 +228,102 @@ impl Sink for TestSink {
 
     fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
         Ok(None)
+    }
+}
+
+#[test]
+fn test_in_subquery_builds_streaming_dag() {
+    let sql = "SELECT outer_users.CustomerID FROM users outer_users \
+         WHERE outer_users.CustomerID IN (SELECT inner_users.CustomerID FROM users inner_users)";
+    build_subquery_dag(sql).unwrap();
+}
+
+fn build_subquery_dag(sql: &str) -> Result<(), BoxedError> {
+    let mut pipeline = AppPipeline::new_with_default_flags();
+    let runtime = create_test_runtime();
+    let context = statement_to_pipeline(
+        sql,
+        &mut pipeline,
+        Some("results".to_string()),
+        vec![],
+        runtime.clone(),
+    )?;
+    let output = context.output_tables_map.get("results").unwrap();
+    let mut sources = AppSourceManager::new();
+    sources
+        .add(
+            Box::new(TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE])),
+            AppSourceMappings::new(
+                "mem".to_string(),
+                vec![("users".to_string(), DEFAULT_PORT_HANDLE)]
+                    .into_iter()
+                    .collect(),
+            ),
+        )
+        .unwrap();
+    let recorded = Arc::new(Mutex::new(Vec::new()));
+    pipeline.add_sink(
+        Box::new(TestSinkFactory {
+            input_ports: vec![DEFAULT_PORT_HANDLE],
+            recorded: Some(recorded.clone()),
+        }),
+        "sink".to_string(),
+    );
+    pipeline.connect_nodes(
+        output.node.clone(),
+        output.port,
+        "sink".to_string(),
+        DEFAULT_PORT_HANDLE,
+    );
+    let mut app = App::new(sources);
+    app.add_pipeline(pipeline);
+    let dag = app.into_dag()?;
+    let executor = runtime.block_on(DagExecutor::new(dag, Default::default()))?;
+    let handle =
+        runtime.block_on(executor.start(pending::<()>(), Default::default(), runtime.clone()))?;
+    handle.join()?;
+    let mut count = 0;
+    for operation in recorded.lock().unwrap().iter() {
+        match &operation.op {
+            Operation::Insert { new } => {
+                assert_eq!(new.values, vec![Field::Int(0)]);
+                count += 1;
+            }
+            Operation::Delete { old } => {
+                assert_eq!(old.values, vec![Field::Int(0)]);
+                count -= 1;
+            }
+            Operation::Update { new, .. } => assert_eq!(new.values, vec![Field::Int(0)]),
+            Operation::BatchInsert { new } => count += new.len() as i32,
+        }
+    }
+    assert_eq!(
+        count, 10,
+        "each outer duplicate must appear once, without internal columns"
+    );
+    Ok(())
+}
+
+#[test]
+fn test_in_subquery_multiple_predicates_and_nested_queries() {
+    for predicate in [
+        "CustomerID IN (SELECT CustomerID FROM users) AND CustomerID IN (SELECT CustomerID FROM users)",
+        "CustomerID NOT IN (SELECT CustomerID FROM users WHERE CustomerID = 999)",
+        "NOT (CustomerID NOT IN (SELECT CustomerID FROM users))",
+        "CustomerID IN (SELECT CustomerID FROM users WHERE CustomerID IN (SELECT CustomerID FROM users))",
+        "CustomerID IN (WITH selected AS (SELECT CustomerID FROM users) SELECT CustomerID FROM selected)",
+    ] {
+        build_subquery_dag(&format!("SELECT CustomerID FROM users WHERE {predicate}")).unwrap();
+    }
+}
+
+#[test]
+fn test_in_subquery_rejects_multiple_columns_and_correlation() {
+    for sql in [
+        "SELECT CustomerID FROM users WHERE CustomerID IN (SELECT CustomerID, Country FROM users)",
+        "SELECT outer_users.CustomerID FROM users outer_users WHERE outer_users.CustomerID IN (SELECT inner_users.CustomerID FROM users inner_users WHERE inner_users.CustomerID = outer_users.CustomerID)",
+    ] {
+        assert!(build_subquery_dag(sql).is_err());
     }
 }
 
