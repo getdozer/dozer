@@ -62,5 +62,8 @@ cargo test -p dozer-sql --lib --locked
 Current coverage includes real compiled AssemblyScript via the SQL expression
 builder, configuration parsing, NULLs, i32 overflow, malformed modules, signature
 mismatch, imports, excessive initial memory, and infinite-loop fuel exhaustion.
-This is not yet evidence of a full CLI/source-to-sink deployment or all optional
-feature combinations.
+The SQL package also runs `test_wasm_source_to_sink_pipeline`: the actual
+`statement_to_pipeline` and `DagExecutor` load the compiled module and forward ten
+source records through a SQL WASM projection into a collecting sink. All ten
+results are asserted as Int(42). This is not a standalone CLI deployment or a
+validation of all optional feature combinations.
