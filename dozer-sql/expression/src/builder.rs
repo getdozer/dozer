@@ -534,6 +534,21 @@ impl ExpressionBuilder {
         let udf_type = udfs.iter().find(|udf| udf.name == function_name);
         if let Some(udf_type) = udf_type {
             return match &udf_type.config {
+                UdfType::Wasm(config) => {
+                    let mut args = Vec::new();
+                    for argument in &sql_function.args {
+                        args.push(
+                            self.parse_sql_function_arg(false, argument, schema, udfs)
+                                .await?,
+                        );
+                    }
+                    Ok(Expression::WasmUdf(crate::wasm::Udf::load(
+                        function_name.clone(),
+                        config,
+                        args,
+                        schema,
+                    )?))
+                }
                 UdfType::Onnx(config) => {
                     #[cfg(feature = "onnx")]
                     {
