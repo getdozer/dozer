@@ -102,6 +102,9 @@ pub enum Error {
     #[error("ONNX UDF is not enabled")]
     OnnxNotEnabled,
 
+    #[error("WASM UDF error: {0}")]
+    Wasm(#[from] crate::wasm_udf::Error),
+
     #[error("Javascript is not enabled")]
     JavaScriptNotEnabled,
 
