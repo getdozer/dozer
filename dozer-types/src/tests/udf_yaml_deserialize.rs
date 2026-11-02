@@ -17,3 +17,17 @@ fn standard() {
     let expected = udf_conf;
     assert_eq!(expected, deserializer_result);
 }
+
+#[test]
+fn wasm_config_with_default_export() {
+    let config = "name: add\nconfig: !Wasm\n  path: ./udfs/numeric.wasm\n";
+    let parsed = serde_yaml::from_str::<UdfConfig>(config).unwrap();
+    match parsed.config {
+        UdfType::Wasm(wasm) => {
+            assert_eq!(wasm.path, "./udfs/numeric.wasm");
+            assert_eq!(wasm.export, None);
+        }
+        _ => panic!("expected WASM config"),
+    }
+    assert!(serde_yaml::from_str::<UdfConfig>(&format!("{config}  unexpected: true\n")).is_err());
+}

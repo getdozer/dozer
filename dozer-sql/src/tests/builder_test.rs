@@ -143,11 +143,15 @@ impl Source for TestSource {
 #[derive(Debug)]
 pub struct TestSinkFactory {
     input_ports: Vec<PortHandle>,
+    collected: Option<std::sync::Arc<std::sync::Mutex<Vec<TableOperation>>>>,
 }
 
 impl TestSinkFactory {
     pub fn new(input_ports: Vec<PortHandle>) -> Self {
-        Self { input_ports }
+        Self {
+            input_ports,
+            collected: None,
+        }
     }
 }
 
@@ -166,7 +170,9 @@ impl SinkFactory for TestSinkFactory {
         _input_schemas: HashMap<PortHandle, Schema>,
         _event_hub: EventHub,
     ) -> Result<Box<dyn Sink>, BoxedError> {
-        Ok(Box::new(TestSink {}))
+        Ok(Box::new(TestSink {
+            collected: self.collected.clone(),
+        }))
     }
 
     fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
@@ -179,10 +185,15 @@ impl SinkFactory for TestSinkFactory {
 }
 
 #[derive(Debug)]
-pub struct TestSink {}
+pub struct TestSink {
+    collected: Option<std::sync::Arc<std::sync::Mutex<Vec<TableOperation>>>>,
+}
 
 impl Sink for TestSink {
     fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
+        if let Some(collected) = &self.collected {
+            collected.lock().unwrap().push(op.clone());
+        }
         println!("Sink: {:?}", op);
         Ok(())
     }
@@ -279,4 +290,83 @@ fn test_pipeline_builder() {
 
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);
+}
+
+#[test]
+fn test_wasm_source_to_sink_pipeline() {
+    use dozer_types::models::udf_config::{UdfConfig, UdfType, WasmConfig};
+    use std::sync::{Arc, Mutex};
+
+    let runtime = create_test_runtime();
+    let mut pipeline = AppPipeline::new_with_default_flags();
+    let config = UdfConfig {
+        name: "calculate".into(),
+        config: UdfType::Wasm(WasmConfig {
+            path: concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/expression/tests/fixtures/numeric.wasm"
+            )
+            .into(),
+            export: Some("add".into()),
+        }),
+    };
+    let context = statement_to_pipeline(
+        "SELECT calculate(CustomerID, 42) AS answer FROM users",
+        &mut pipeline,
+        Some("results".into()),
+        vec![config],
+        runtime.clone(),
+    )
+    .unwrap();
+    let table = context.output_tables_map.get("results").unwrap();
+    let mut sources = AppSourceManager::new();
+    sources
+        .add(
+            Box::new(TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE])),
+            AppSourceMappings::new(
+                "mem".into(),
+                vec![("users".into(), DEFAULT_PORT_HANDLE)]
+                    .into_iter()
+                    .collect(),
+            ),
+        )
+        .unwrap();
+    let collected = Arc::new(Mutex::new(Vec::new()));
+    pipeline.add_sink(
+        Box::new(TestSinkFactory {
+            input_ports: vec![DEFAULT_PORT_HANDLE],
+            collected: Some(collected.clone()),
+        }),
+        "wasm_sink".into(),
+    );
+    pipeline.connect_nodes(
+        table.node.clone(),
+        table.port,
+        "wasm_sink".into(),
+        DEFAULT_PORT_HANDLE,
+    );
+    let mut app = App::new(sources);
+    app.add_pipeline(pipeline);
+    let dag = app.into_dag().unwrap();
+    let executor_runtime = runtime.clone();
+    let handle = runtime.block_on(async move {
+        DagExecutor::new(dag, Default::default())
+            .await
+            .unwrap()
+            .start(pending::<()>(), Default::default(), executor_runtime)
+            .await
+            .unwrap()
+    });
+    handle.join().unwrap();
+    let operations = collected.lock().unwrap();
+    assert_eq!(operations.len(), 10);
+    for operation in operations.iter() {
+        match &operation.op {
+            Operation::Insert { new } => assert_eq!(new.values, vec![Field::Int(42)]),
+            other => panic!("unexpected sink operation: {other:?}"),
+        }
+    }
+    println!(
+        "Actual source -> SQL calculate(CustomerID,42) -> WASM -> sink: 10 asserted Int(42) rows"
+    );
 }

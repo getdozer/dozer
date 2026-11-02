@@ -16,6 +16,15 @@ pub struct UdfConfig {
 pub enum UdfType {
     Onnx(OnnxConfig),
     JavaScript(JavaScriptConfig),
+    Wasm(WasmConfig),
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct WasmConfig {
+    pub path: String,
+    /// Export to invoke. Defaults to the configured SQL function name.
+    pub export: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
