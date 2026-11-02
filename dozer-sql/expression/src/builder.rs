@@ -573,6 +573,17 @@ impl ExpressionBuilder {
                         Err(Error::JavaScriptNotEnabled)
                     }
                 }
+
+                UdfType::Wasm(config) => {
+                    self.parse_wasm_udf(
+                        function_name.clone(),
+                        config,
+                        sql_function,
+                        schema,
+                        udfs,
+                    )
+                    .await
+                }
             };
         }
 
@@ -964,6 +975,26 @@ impl ExpressionBuilder {
             session: crate::onnx::DozerSession(session.into()),
             args,
         })
+    }
+
+    async fn parse_wasm_udf(
+        &mut self,
+        name: String,
+        config: &dozer_types::models::udf_config::WasmConfig,
+        function: &Function,
+        schema: &Schema,
+        udfs: &[UdfConfig],
+    ) -> Result<Expression, Error> {
+        let mut args = vec![];
+        for argument in &function.args {
+            let arg = self
+                .parse_sql_function_arg(false, argument, schema, udfs)
+                .await?;
+            args.push(arg);
+        }
+
+        let udf = crate::wasm_udf::Udf::new(name, config, args, schema)?;
+        Ok(Expression::WasmUdf(udf))
     }
 
     #[cfg(feature = "javascript")]
