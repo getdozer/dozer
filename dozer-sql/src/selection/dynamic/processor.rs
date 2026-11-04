@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    mem::{discriminant, Discriminant},
+};
 
 use dozer_core::{
     channels::ProcessorChannelForwarder, epoch::Epoch, node::Processor, DEFAULT_PORT_HANDLE,
@@ -14,6 +17,8 @@ use crate::errors::PipelineError;
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Membership {
     values: HashMap<Field, usize>,
+    /// Number of distinct retained values per canonical class.
+    classes: HashMap<Discriminant<Field>, usize>,
     nulls: usize,
     total: usize,
 }
@@ -26,8 +31,28 @@ impl Membership {
         if value == Field::Null {
             return Ok(Field::Null);
         }
+        let value = canonical(value);
+        if self.values.contains_key(&value) {
+            return Ok(Field::Boolean(true));
+        }
         let mut unknown = self.nulls != 0;
-        for candidate in self.values.keys() {
+        // Values of the same class are fully decided by the hash lookup above; only
+        // candidates of another class (e.g. an integer against a decimal or a string)
+        // need the generic comparison.
+        let class = discriminant(&value);
+        let has_other_class = self.classes.keys().any(|other| *other != class);
+        if !has_other_class {
+            return Ok(if unknown {
+                Field::Null
+            } else {
+                Field::Boolean(false)
+            });
+        }
+        for candidate in self
+            .values
+            .keys()
+            .filter(|candidate| discriminant(*candidate) != class)
+        {
             match equal(value.clone(), candidate.clone())? {
                 Field::Boolean(true) => return Ok(Field::Boolean(true)),
                 Field::Null => unknown = true,
@@ -47,7 +72,12 @@ impl Membership {
         if value == &Field::Null {
             self.nulls = increment(self.nulls)?;
         } else {
-            let count = self.values.entry(value.clone()).or_default();
+            let key = canonical(value.clone());
+            let class = discriminant(&key);
+            let count = self.values.entry(key).or_default();
+            if *count == 0 {
+                *self.classes.entry(class).or_default() += 1;
+            }
             *count = increment(*count)?;
         }
         Ok(())
@@ -58,10 +88,18 @@ impl Membership {
         if value == &Field::Null {
             self.nulls = self.nulls.checked_sub(1).ok_or_else(missing_record)?;
         } else {
-            let count = self.values.get_mut(value).ok_or_else(missing_record)?;
+            let key = canonical(value.clone());
+            let count = self.values.get_mut(&key).ok_or_else(missing_record)?;
             *count -= 1;
             if *count == 0 {
-                self.values.remove(value);
+                self.values.remove(&key);
+                let class = discriminant(&key);
+                if let Some(distinct) = self.classes.get_mut(&class) {
+                    *distinct -= 1;
+                    if *distinct == 0 {
+                        self.classes.remove(&class);
+                    }
+                }
             }
         }
         self.total -= 1;
@@ -76,6 +114,19 @@ impl Membership {
                 .values
                 .keys()
                 .all(|value| other.values.contains_key(value))
+    }
+}
+
+/// Maps values that compare equal within a class onto one hashable key:
+/// all integer widths become `I128` and `String` becomes `Text`.
+fn canonical(value: Field) -> Field {
+    match value {
+        Field::Int(v) => Field::I128(v as i128),
+        Field::Int8(v) => Field::I128(v as i128),
+        Field::UInt(v) => Field::I128(v as i128),
+        Field::U128(v) => i128::try_from(v).map(Field::I128).unwrap_or(Field::U128(v)),
+        Field::String(v) => Field::Text(v),
+        other => other,
     }
 }
 
@@ -287,5 +338,53 @@ impl Processor for DynamicSelectionProcessor {
             });
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod membership_tests {
+    use super::*;
+
+    fn record(value: Field) -> Record {
+        Record::new(vec![value])
+    }
+
+    #[test]
+    fn lookup_uses_canonical_keys_with_many_values() {
+        let mut membership = Membership::default();
+        for i in 0..50_000i64 {
+            membership.insert(&record(Field::Int(i))).unwrap();
+        }
+        // A single class means no value is ever compared with the generic
+        // equality: every lookup is a hash probe.
+        assert_eq!(membership.classes.len(), 1);
+        for i in (0..50_000u64).step_by(997) {
+            assert_eq!(
+                membership.contains(Field::UInt(i)).unwrap(),
+                Field::Boolean(true)
+            );
+        }
+        assert_eq!(
+            membership.contains(Field::I128(-1)).unwrap(),
+            Field::Boolean(false)
+        );
+        membership.insert(&record(Field::Null)).unwrap();
+        assert_eq!(membership.contains(Field::Int(-1)).unwrap(), Field::Null);
+    }
+
+    #[test]
+    fn strings_match_text_and_retraction_clears_classes() {
+        let mut membership = Membership::default();
+        membership.insert(&record(Field::String("a".into()))).unwrap();
+        assert_eq!(
+            membership.contains(Field::Text("a".into())).unwrap(),
+            Field::Boolean(true)
+        );
+        membership.delete(&record(Field::Text("a".into()))).unwrap();
+        assert!(membership.classes.is_empty());
+        assert_eq!(
+            membership.contains(Field::Text("a".into())).unwrap(),
+            Field::Boolean(false)
+        );
     }
 }

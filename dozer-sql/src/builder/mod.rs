@@ -9,7 +9,11 @@ use dozer_sql_expression::builder::{ExpressionBuilder, NameOrAlias};
 use dozer_sql_expression::sqlparser::ast::{Distinct, SetOperator, SetQuantifier, TableFactor};
 use dozer_types::models::udf_config::UdfConfig;
 
-use dozer_sql_expression::sqlparser::ast::{Query, Select, SetExpr, Statement};
+use dozer_sql_expression::sqlparser::{
+    ast::{Query, Select, SetExpr, Statement},
+    dialect::DozerDialect,
+    parser::Parser,
+};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -82,9 +86,11 @@ pub fn statement_to_pipeline(
     udfs: Vec<UdfConfig>,
     runtime: Arc<Runtime>,
 ) -> Result<QueryContext, PipelineError> {
+    let dialect = DozerDialect {};
     let mut ctx = QueryContext::new(udfs, runtime);
     let is_top_select = true;
-    let ast = parser::parse_sql(sql).map_err(|err| PipelineError::InternalError(Box::new(err)))?;
+    let ast = Parser::parse_sql(&dialect, sql)
+        .map_err(|err| PipelineError::InternalError(Box::new(err)))?;
     let query_name = NameOrAlias(format!("query_{}", ctx.get_next_processor_id()), None);
 
     for (idx, statement) in ast.into_iter().enumerate() {
@@ -652,7 +658,6 @@ struct ConnectionInfo {
 mod common;
 mod from;
 mod join;
-mod parser;
 mod subquery;
 mod table_operator;
 

@@ -282,7 +282,7 @@ fn inherited_cte_and_local_shadowing_remain_scoped() {
 
 #[test]
 fn nested_membership_and_parenthesized_queries() {
-    run("SELECT key FROM outer_rows WHERE key IN ((SELECT key FROM members WHERE key IN (SELECT key FROM others WHERE key NOT IN (SELECT key FROM more))))", tables(), vec![
+    run("SELECT key FROM outer_rows WHERE key IN (SELECT key FROM members WHERE key IN (SELECT key FROM others WHERE key NOT IN (SELECT key FROM more)))", tables(), vec![
         step("outer", 0, insert(pair(1, 0)), vec![]),
         step("first level", 1, insert(pair(1, 0)), vec![]),
         step("second level", 2, insert(pair(1, 0)), vec![row(1)]),
@@ -308,7 +308,7 @@ fn union_all_and_distinct_membership_retract_last_copy() {
 #[test]
 fn parenthesized_cte_not_in_retains_duplicates_and_null_membership() {
     let null_member = Record::new(vec![Field::Null, Field::Int(0)]);
-    run("SELECT key FROM outer_rows WHERE key NOT IN (/* query */ (((WITH x AS (SELECT key FROM members) SELECT key FROM x))))", tables(), vec![
+    run("SELECT key FROM outer_rows WHERE key NOT IN (/* query */ WITH x AS (SELECT key FROM members) SELECT key FROM x)", tables(), vec![
         step("outer duplicates with empty membership", 0, Operation::BatchInsert { new: vec![pair(1, 0), pair(1, 0)] }, vec![row(1), row(1)]),
         step("first member", 1, insert(pair(1, 0)), vec![]),
         step("duplicate member", 1, insert(pair(1, 0)), vec![]),
@@ -356,7 +356,7 @@ fn review_qualified_cte_outputs_rebind_to_their_local_relation() {
 #[test]
 fn review_union_sibling_queries_keep_independent_cte_names() {
     for prefix in ["", "WITH x AS (SELECT key FROM more) "] {
-        let sql = format!("{prefix}SELECT key FROM outer_rows WHERE key IN ((WITH x AS (SELECT key FROM members) SELECT x.key FROM x) UNION ALL (WITH x AS (SELECT key FROM others) SELECT x.key FROM x))");
+        let sql = format!("{prefix}SELECT key FROM outer_rows WHERE key IN (SELECT a.key FROM (WITH x AS (SELECT key FROM members) SELECT x.key FROM x) AS a UNION ALL SELECT b.key FROM (WITH x AS (SELECT key FROM others) SELECT x.key FROM x) AS b)");
         run(
             &sql,
             tables(),
@@ -373,7 +373,7 @@ fn review_union_sibling_queries_keep_independent_cte_names() {
         .unwrap_or_else(|error| panic!("{sql}: {error}"));
     }
     // A left branch definition is not visible to a sibling without its own WITH.
-    assert!(run("SELECT key FROM outer_rows WHERE key IN ((WITH x AS (SELECT key FROM members) SELECT key FROM x) UNION ALL (SELECT key FROM x))", tables(), vec![], false, false).is_err());
+    assert!(run("SELECT key FROM outer_rows WHERE key IN (SELECT a.key FROM (WITH x AS (SELECT key FROM members) SELECT key FROM x) AS a UNION ALL SELECT key FROM x)", tables(), vec![], false, false).is_err());
 }
 
 #[test]
@@ -900,7 +900,7 @@ fn numeric_schema_compatibility_and_parenthesized_union() {
         false,
     )
     .unwrap();
-    run("SELECT key FROM outer_rows WHERE key IN ((SELECT key FROM members) UNION ALL (SELECT key FROM others))", tables(), vec![
+    run("SELECT key FROM outer_rows WHERE key IN (SELECT key FROM members UNION ALL SELECT key FROM others)", tables(), vec![
         step("outer", 0, insert(pair(1, 0)), vec![]),
         step("parenthesized union branch", 1, insert(pair(1, 0)), vec![row(1)]),
         step("other parenthesized branch", 2, insert(pair(1, 0)), vec![row(1)]),

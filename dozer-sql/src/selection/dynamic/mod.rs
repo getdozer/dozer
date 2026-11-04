@@ -1,3 +1,18 @@
+//! Streaming `WHERE value IN (SELECT ...)` and `NOT IN`.
+//!
+//! The outer stream and each uncorrelated subquery feed a stateful selection
+//! processor. Inner duplicates are reference-counted; an outer row is emitted or
+//! retracted only when its predicate changes selectedness. Predicates use SQL
+//! three-valued logic: an empty subquery makes `IN` false, a match is true, and an
+//! unmatched comparison involving NULL is unknown. Only true selects a row.
+//!
+//! The subquery must be written as `IN (SELECT ...)` (or `IN (WITH ... SELECT ...)`).
+//! Correlated or lateral subqueries, row-valued membership and recursive CTEs are
+//! rejected. State is in memory. Membership lookup hashes a canonical form of the
+//! value (all integer widths, and string/text, share a key); only candidates of a
+//! different type class fall back to the generic equality operator.
+//!
+//! `tests/dynamic_in.rs` runs the SQL builder, DAG and a collecting sink end to end.
 use std::{collections::HashMap, sync::Arc};
 
 use dozer_core::{
