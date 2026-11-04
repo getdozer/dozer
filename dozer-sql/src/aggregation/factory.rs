@@ -25,6 +25,7 @@ pub struct AggregationProcessorFactory {
     enable_probabilistic_optimizations: bool,
     udfs: Vec<UdfConfig>,
     runtime: Arc<Runtime>,
+    strict_qualifiers: bool,
 
     /// Type name can only be determined after schema propagation.
     type_name: Mutex<Option<String>>,
@@ -48,11 +49,36 @@ impl AggregationProcessorFactory {
             enable_probabilistic_optimizations,
             udfs,
             runtime,
+            strict_qualifiers: false,
             type_name: Mutex::new(None),
         }
     }
 
+    pub(crate) fn with_strict_qualifiers(mut self, enabled: bool) -> Self {
+        self.strict_qualifiers = enabled;
+        self
+    }
+
     async fn get_planner(&self, input_schema: Schema) -> Result<CommonPlanner, PipelineError> {
+        if self.strict_qualifiers {
+            for item in &self.projection {
+                if let SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } = item
+                {
+                    crate::selection::dynamic::plan::validate_columns(expr, &input_schema)?;
+                    crate::selection::dynamic::plan::validate_repeatable(
+                        &mut expr.clone(),
+                        &self.udfs,
+                    )?;
+                }
+            }
+            for expr in self.group_by.iter().chain(self.having.iter()) {
+                crate::selection::dynamic::plan::validate_columns(expr, &input_schema)?;
+                crate::selection::dynamic::plan::validate_repeatable(
+                    &mut expr.clone(),
+                    &self.udfs,
+                )?;
+            }
+        }
         let mut projection_planner =
             CommonPlanner::new(input_schema, self.udfs.as_slice(), self.runtime.clone());
         projection_planner

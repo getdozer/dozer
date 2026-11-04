@@ -138,6 +138,22 @@ impl Processor for SetProcessor {
                 let (old_records, new_records) =
                     self.update(old, new).map_err(PipelineError::ProductError)?;
 
+                // Preserve the atomic boundary when one visible row changes.
+                // Splitting UPDATE into DELETE/INSERT makes downstream counted
+                // membership transiently retract an unchanged selected row.
+                if let ([(SetAction::Delete, old)], [(SetAction::Insert, new)]) =
+                    (old_records.as_slice(), new_records.as_slice())
+                {
+                    fw.send(TableOperation::without_id(
+                        Operation::Update {
+                            old: old.clone(),
+                            new: new.clone(),
+                        },
+                        DEFAULT_PORT_HANDLE,
+                    ));
+                    return Ok(());
+                }
+
                 for (action, old) in old_records.into_iter() {
                     match action {
                         SetAction::Insert => {

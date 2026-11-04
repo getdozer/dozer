@@ -6,7 +6,7 @@ use dozer_core::app::AppPipeline;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql_expression::builder::{ExpressionBuilder, NameOrAlias};
-use dozer_sql_expression::sqlparser::ast::{SetOperator, SetQuantifier, TableFactor};
+use dozer_sql_expression::sqlparser::ast::{Distinct, SetOperator, SetQuantifier, TableFactor};
 use dozer_types::models::udf_config::UdfConfig;
 
 use dozer_sql_expression::sqlparser::{
@@ -55,6 +55,8 @@ pub struct QueryContext {
 
     // The tokio runtime
     runtime: Arc<Runtime>,
+    // Only membership subqueries require strict local qualifier resolution.
+    strict_qualifiers: bool,
 }
 
 impl QueryContext {
@@ -72,6 +74,7 @@ impl QueryContext {
             processor_counter: Default::default(),
             udfs,
             runtime,
+            strict_qualifiers: false,
         }
     }
 }
@@ -93,6 +96,9 @@ pub fn statement_to_pipeline(
     for (idx, statement) in ast.into_iter().enumerate() {
         match statement {
             Statement::Query(query) => {
+                // Include inherited CTE definitions in strict schema validation,
+                // even though they are built before the membership consumer.
+                ctx.strict_qualifiers = subquery::has_membership(&query);
                 query_to_pipeline(
                     TableInfo {
                         name: query_name.clone(),
@@ -142,6 +148,18 @@ fn query_to_pipeline(
         ));
     }
 
+    if query_ctx.strict_qualifiers && (query.fetch.is_some() || !query.locks.is_empty()) {
+        return Err(InvalidQuery(
+            "FETCH and locking clauses are not supported in IN subqueries".into(),
+        ));
+    }
+
+    let required_ctes = if query_ctx.strict_qualifiers {
+        Some(subquery::required_ctes(&query)?)
+    } else {
+        None
+    };
+
     // Attach the first pipeline if there is with clause
     if let Some(with) = query.with {
         if with.recursive {
@@ -150,20 +168,38 @@ fn query_to_pipeline(
             ));
         }
 
-        for table in with.cte_tables {
+        let mut declared = HashSet::new();
+        for mut table in with.cte_tables {
             if table.from.is_some() {
                 return Err(PipelineError::UnsupportedSqlError(
                     UnsupportedSqlError::CteFromError,
                 ));
             }
+            // Inherited definitions are built before their membership consumer,
+            // so validate them here as well as inline membership queries.
+            if query_ctx.strict_qualifiers {
+                subquery::validate_query(&mut table.query, &query_ctx.udfs)?;
+                if !table.alias.columns.is_empty() {
+                    return Err(InvalidQuery(
+                        "CTE column alias lists are not supported in IN subqueries".into(),
+                    ));
+                }
+            }
             let table_name = table.alias.name.to_string();
             if query_ctx
                 .pipeline_map
                 .contains_key(&(pipeline_idx, table_name.clone()))
+                || !declared.insert(table_name.clone())
             {
                 return Err(InvalidQuery(format!(
                     "WITH query name {table_name:?} specified more than once"
                 )));
+            }
+            if required_ctes
+                .as_ref()
+                .is_some_and(|required| !required.contains(&table_name))
+            {
+                continue;
             }
             query_to_pipeline(
                 TableInfo {
@@ -190,21 +226,14 @@ fn query_to_pipeline(
                 is_top_select,
             )?;
         }
-        SetExpr::Query(query) => {
-            let query_name = format!("subquery_{}", query_ctx.get_next_processor_id());
-            let mut ctx = QueryContext::new(query_ctx.udfs.clone(), query_ctx.runtime.clone());
-            query_to_pipeline(
-                TableInfo {
-                    name: NameOrAlias(query_name, None),
-                    override_name: None,
-                },
-                *query,
-                pipeline,
-                &mut ctx,
-                pipeline_idx,
-                false, //Inside a subquery, so not top select
-            )?
-        }
+        SetExpr::Query(query) => query_to_pipeline(
+            table_info,
+            *query,
+            pipeline,
+            query_ctx,
+            pipeline_idx,
+            is_top_select,
+        )?,
         SetExpr::SetOperation {
             op,
             set_quantifier,
@@ -242,6 +271,8 @@ fn select_to_pipeline(
     pipeline_idx: usize,
     is_top_select: bool,
 ) -> Result<String, PipelineError> {
+    let distinct =
+        query_ctx.strict_qualifiers && matches!(select.distinct, Some(Distinct::Distinct));
     // FROM clause
     let Some(from) = select.from.into_iter().next() else {
         return Err(PipelineError::UnsupportedSqlError(
@@ -288,20 +319,31 @@ fn select_to_pipeline(
             .unwrap_or(false),
         query_ctx.udfs.clone(),
         query_ctx.runtime.clone(),
-    );
+    )
+    .with_strict_qualifiers(query_ctx.strict_qualifiers);
 
     pipeline.add_processor(Box::new(aggregation), gen_agg_name.clone());
 
     // Where clause
     if let Some(selection) = select.selection {
-        let selection = SelectionProcessorFactory::new(
-            gen_selection_name.clone(),
-            selection,
-            query_ctx.udfs.clone(),
-            query_ctx.runtime.clone(),
-        );
-
-        pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
+        if let Some(dynamic) = subquery::selection(
+            &selection,
+            &gen_selection_name,
+            pipeline,
+            query_ctx,
+            pipeline_idx,
+        )? {
+            pipeline.add_processor(Box::new(dynamic), gen_selection_name.clone());
+        } else {
+            let selection = SelectionProcessorFactory::new(
+                gen_selection_name.clone(),
+                selection,
+                query_ctx.udfs.clone(),
+                query_ctx.runtime.clone(),
+            )
+            .with_strict_qualifiers(query_ctx.strict_qualifiers);
+            pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
+        }
 
         pipeline.connect_nodes(
             gen_product_name,
@@ -325,10 +367,27 @@ fn select_to_pipeline(
         );
     }
 
+    let output_name = if distinct {
+        let name = format!("distinct--{}", query_ctx.get_next_processor_id());
+        pipeline.add_processor(
+            Box::new(SetProcessorFactory::distinct(name.clone())),
+            name.clone(),
+        );
+        pipeline.connect_nodes(
+            gen_agg_name,
+            DEFAULT_PORT_HANDLE,
+            name.clone(),
+            DEFAULT_PORT_HANDLE,
+        );
+        name
+    } else {
+        gen_agg_name
+    };
+
     query_ctx.pipeline_map.insert(
         (pipeline_idx, table_info.name.0.to_string()),
         OutputNodeInfo {
-            node: gen_agg_name.clone(),
+            node: output_name.clone(),
             port: DEFAULT_PORT_HANDLE,
         },
     );
@@ -351,13 +410,13 @@ fn select_to_pipeline(
         query_ctx.output_tables_map.insert(
             table_name,
             OutputNodeInfo {
-                node: gen_agg_name.clone(),
+                node: output_name.clone(),
                 port: DEFAULT_PORT_HANDLE,
             },
         );
     }
 
-    Ok(gen_agg_name)
+    Ok(output_name)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -392,7 +451,7 @@ fn set_to_pipeline(
             is_top_select,
         )?,
         SetExpr::SetOperation {
-            op: _,
+            op: SetOperator::Union,
             set_quantifier,
             left,
             right,
@@ -406,6 +465,21 @@ fn set_to_pipeline(
             pipeline_idx,
             is_top_select,
         )?,
+        SetExpr::Query(query) => {
+            let strict_qualifiers = query_ctx.strict_qualifiers;
+            let output = subquery::scoped_query(
+                left_table_info,
+                *query,
+                pipeline,
+                query_ctx,
+                pipeline_idx,
+                strict_qualifiers,
+            )?;
+            query_ctx
+                .pipeline_map
+                .insert((pipeline_idx, gen_left_set_name.clone()), output);
+            String::new()
+        }
         _ => {
             return Err(PipelineError::InvalidQuery(
                 "Invalid UNION left Query".to_string(),
@@ -423,7 +497,7 @@ fn set_to_pipeline(
             is_top_select,
         )?,
         SetExpr::SetOperation {
-            op: _,
+            op: SetOperator::Union,
             set_quantifier,
             left,
             right,
@@ -437,6 +511,21 @@ fn set_to_pipeline(
             pipeline_idx,
             is_top_select,
         )?,
+        SetExpr::Query(query) => {
+            let strict_qualifiers = query_ctx.strict_qualifiers;
+            let output = subquery::scoped_query(
+                right_table_info,
+                *query,
+                pipeline,
+                query_ctx,
+                pipeline_idx,
+                strict_qualifiers,
+            )?;
+            query_ctx
+                .pipeline_map
+                .insert((pipeline_idx, gen_right_set_name.clone()), output);
+            String::new()
+        }
         _ => {
             return Err(PipelineError::InvalidQuery(
                 "Invalid UNION right Query".to_string(),
@@ -522,17 +611,22 @@ fn get_from_source(
             Ok(NameOrAlias(input_name, alias_name))
         }
         TableFactor::Derived {
-            lateral: _,
+            lateral,
             subquery,
             alias,
         } => {
+            if lateral {
+                return Err(PipelineError::InvalidQuery(
+                    "Lateral subqueries are not supported".into(),
+                ));
+            }
             let name = format!("derived_{}", query_ctx.get_next_processor_id());
             let alias_name = alias.as_ref().map(|alias_ident| {
                 ExpressionBuilder::fullname_from_ident(&[alias_ident.name.clone()])
             });
-            let is_top_select = false; //inside FROM clause, so not top select
             let name_or = NameOrAlias(name, alias_name);
-            query_to_pipeline(
+            let strict_qualifiers = query_ctx.strict_qualifiers;
+            let output = subquery::scoped_query(
                 TableInfo {
                     name: name_or.clone(),
                     override_name: None,
@@ -541,8 +635,11 @@ fn get_from_source(
                 pipeline,
                 query_ctx,
                 pipeline_idx,
-                is_top_select,
+                strict_qualifiers,
             )?;
+            query_ctx
+                .pipeline_map
+                .insert((pipeline_idx, name_or.0.clone()), output);
 
             Ok(name_or)
         }
@@ -561,6 +658,7 @@ struct ConnectionInfo {
 mod common;
 mod from;
 mod join;
+mod subquery;
 mod table_operator;
 
 pub use common::string_from_sql_object_name;

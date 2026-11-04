@@ -32,7 +32,7 @@ impl SetOperation {
     ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         match (self.op, self.quantifier) {
             (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record)]),
-            (SetOperator::Union, SetQuantifier::None) => {
+            (SetOperator::Union, SetQuantifier::None | SetQuantifier::Distinct) => {
                 self.execute_union(action, record, record_map)
             }
             _ => Err(PipelineError::InvalidOperandType(self.op.to_string())),
@@ -92,5 +92,41 @@ impl SetOperation {
         }
 
         record_map.estimate_count(&record)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::product::set::record_map::AccurateCountingRecordMap;
+    use dozer_types::types::Field;
+
+    #[test]
+    fn explicit_and_implicit_union_distinct_retract_only_the_last_copy() {
+        for quantifier in [SetQuantifier::None, SetQuantifier::Distinct] {
+            let union = SetOperation {
+                op: SetOperator::Union,
+                quantifier,
+            };
+            let mut counts = AccurateCountingRecordMap::new().unwrap().into();
+            let row = Record::new(vec![Field::Int(1)]);
+            for (action, emitted) in [
+                (SetAction::Insert, true),
+                (SetAction::Insert, false),
+                (SetAction::Delete, false),
+                (SetAction::Delete, true),
+                (SetAction::Insert, true),
+            ] {
+                let expected = if emitted {
+                    vec![(action, row.clone())]
+                } else {
+                    vec![]
+                };
+                assert_eq!(
+                    union.execute(action, row.clone(), &mut counts).unwrap(),
+                    expected
+                );
+            }
+        }
     }
 }

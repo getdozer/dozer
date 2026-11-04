@@ -133,8 +133,10 @@ pub fn insert_table_operator_processor_to_pipeline(
         ));
     };
 
-    let source_name = match table {
-        TableOperatorArg::Argument(argument) => get_source_name(&operator.name, &argument)?,
+    let (source_name, mut input_nodes) = match table {
+        TableOperatorArg::Argument(argument) => {
+            (get_source_name(&operator.name, &argument)?, vec![])
+        }
         TableOperatorArg::Descriptor(descriptor) => {
             let connection_info = insert_table_operator_processor_to_pipeline(
                 descriptor,
@@ -142,24 +144,25 @@ pub fn insert_table_operator_processor_to_pipeline(
                 pipeline_idx,
                 query_context,
             )?;
-            connection_info.output_node.0
+            // A nested operator may defer wiring its CTE input until the caller
+            // resolves pipeline outputs. Keep those edges as well as its output.
+            (connection_info.output_node.0, connection_info.input_nodes)
         }
     };
 
     let is_an_entry_point = is_an_entry_point(&source_name, query_context, pipeline_idx);
     let is_a_pipeline_output = is_a_pipeline_output(&source_name, query_context, pipeline_idx);
 
-    let input_nodes = if is_an_entry_point {
+    if is_an_entry_point {
         let entry_point = PipelineEntryPoint::new(source_name.clone(), DEFAULT_PORT_HANDLE);
         pipeline.add_entry_point(processor_name.clone(), entry_point);
         query_context.used_sources.push(source_name.clone());
-        vec![]
     } else if is_a_pipeline_output {
-        vec![(
+        input_nodes.push((
             source_name.clone(),
             processor_name.clone(),
             DEFAULT_PORT_HANDLE,
-        )]
+        ));
     } else {
         pipeline.connect_nodes(
             source_name,
@@ -167,8 +170,7 @@ pub fn insert_table_operator_processor_to_pipeline(
             processor_name.clone(),
             DEFAULT_PORT_HANDLE,
         );
-        vec![]
-    };
+    }
 
     Ok(ConnectionInfo {
         input_nodes,

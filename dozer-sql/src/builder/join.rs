@@ -12,7 +12,7 @@ use crate::{
 };
 
 use super::{
-    common::{get_name_or_alias, is_an_entry_point},
+    common::{get_scoped_name_or_alias, is_an_entry_point},
     table_operator::{insert_table_operator_processor_to_pipeline, is_table_operator},
     ConnectionInfo,
 };
@@ -30,16 +30,22 @@ pub fn insert_join_to_pipeline(
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
-    let mut input_nodes = vec![];
-
     let left_table = from.relation;
-    let mut left_name_or_alias = Some(get_name_or_alias(&left_table)?);
+    let mut left_name_or_alias = Some(get_scoped_name_or_alias(
+        &left_table,
+        query_context,
+        pipeline_idx,
+    )?);
     let mut left_join_source =
         insert_join_source_to_pipeline(left_table, pipeline, pipeline_idx, query_context)?;
 
     for join in from.joins {
         let right_table = join.relation;
-        let right_name_or_alias = Some(get_name_or_alias(&right_table)?);
+        let right_name_or_alias = Some(get_scoped_name_or_alias(
+            &right_table,
+            query_context,
+            pipeline_idx,
+        )?);
         let right_join_source = insert_join_source_to_pipeline(
             right_table.clone(),
             pipeline,
@@ -70,14 +76,14 @@ pub fn insert_join_to_pipeline(
             join_processor_name.clone(),
         );
 
-        input_nodes.extend(modify_pipeline_graph(
+        let mut input_nodes = modify_pipeline_graph(
             left_join_source,
             join_processor_name.clone(),
             LEFT_JOIN_PORT,
             pipeline,
             pipeline_idx,
             query_context,
-        ));
+        );
         input_nodes.extend(modify_pipeline_graph(
             right_join_source,
             join_processor_name.clone(),
@@ -90,7 +96,7 @@ pub fn insert_join_to_pipeline(
         // TODO: refactor join source name and aliasing logic
         left_name_or_alias = None;
         left_join_source = JoinSource::Join(ConnectionInfo {
-            input_nodes: input_nodes.clone(),
+            input_nodes,
             output_node: (join_processor_name, DEFAULT_PORT_HANDLE),
         });
     }
@@ -133,7 +139,7 @@ fn is_nested_join(left_table: &TableFactor) -> bool {
     matches!(left_table, TableFactor::NestedJoin { .. })
 }
 
-/// Returns the input node if there is one
+/// Retain deferred CTE inputs while connecting this source to the next join.
 fn modify_pipeline_graph(
     source: JoinSource,
     id: String,
@@ -141,16 +147,16 @@ fn modify_pipeline_graph(
     pipeline: &mut AppPipeline,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
-) -> Option<(String, String, u16)> {
+) -> Vec<(String, String, PortHandle)> {
     match source {
         JoinSource::Table(source_table) => {
             if is_an_entry_point(&source_table, query_context, pipeline_idx) {
                 let entry_point = PipelineEntryPoint::new(source_table.clone(), port);
                 pipeline.add_entry_point(id, entry_point);
                 query_context.used_sources.push(source_table);
-                None
+                vec![]
             } else {
-                Some((source_table, id, port))
+                vec![(source_table, id, port)]
             }
         }
         JoinSource::Operator(connection_info) | JoinSource::Join(connection_info) => {
@@ -160,7 +166,7 @@ fn modify_pipeline_graph(
                 id,
                 port,
             );
-            None
+            connection_info.input_nodes
         }
     }
 }

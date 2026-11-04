@@ -70,6 +70,25 @@ pub fn get_name_or_alias(relation: &TableFactor) -> Result<NameOrAlias, Pipeline
     }
 }
 
+/// A CTE is a local relation, even when its projected fields retain the source
+/// metadata of an underlying table (or have no table source after a UNION).
+pub(super) fn get_scoped_name_or_alias(
+    relation: &TableFactor,
+    context: &QueryContext,
+    pipeline_idx: usize,
+) -> Result<NameOrAlias, PipelineError> {
+    let mut name = get_name_or_alias(relation)?;
+    if context.strict_qualifiers
+        && name.1.is_none()
+        && context
+            .pipeline_map
+            .contains_key(&(pipeline_idx, name.0.clone()))
+    {
+        name.1 = Some(name.0.clone());
+    }
+    Ok(name)
+}
+
 pub fn string_from_sql_object_name(name: &ObjectName) -> String {
     name.0
         .iter()

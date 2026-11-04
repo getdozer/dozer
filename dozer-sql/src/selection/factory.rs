@@ -20,6 +20,7 @@ pub struct SelectionProcessorFactory {
     id: String,
     udfs: Vec<UdfConfig>,
     runtime: Arc<Runtime>,
+    strict_qualifiers: bool,
 }
 
 impl SelectionProcessorFactory {
@@ -35,7 +36,13 @@ impl SelectionProcessorFactory {
             id,
             udfs: udf_config,
             runtime,
+            strict_qualifiers: false,
         }
+    }
+
+    pub(crate) fn with_strict_qualifiers(mut self, enabled: bool) -> Self {
+        self.strict_qualifiers = enabled;
+        self
     }
 }
 
@@ -76,6 +83,10 @@ impl ProcessorFactory for SelectionProcessorFactory {
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
+        if self.strict_qualifiers {
+            super::dynamic::plan::validate_columns(&self.statement, schema)?;
+            super::dynamic::plan::validate_repeatable(&mut self.statement.clone(), &self.udfs)?;
+        }
         match ExpressionBuilder::new(schema.fields.len(), self.runtime.clone())
             .build(false, &self.statement, schema, &self.udfs)
             .await

@@ -11,7 +11,7 @@ use crate::{
 };
 
 use super::{
-    common::{get_name_or_alias, is_an_entry_point},
+    common::{get_name_or_alias, get_scoped_name_or_alias, is_an_entry_point},
     join::insert_join_to_pipeline,
     table_operator::{insert_table_operator_processor_to_pipeline, is_table_operator},
     ConnectionInfo,
@@ -69,7 +69,7 @@ fn insert_table_processor_to_pipeline(
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
-    let relation_name_or_alias = get_name_or_alias(&relation)?;
+    let relation_name_or_alias = get_scoped_name_or_alias(&relation, query_context, pipeline_idx)?;
     let product_input_name = get_from_source(relation, pipeline, query_context, pipeline_idx)?.0;
 
     let processor_name = format!(
