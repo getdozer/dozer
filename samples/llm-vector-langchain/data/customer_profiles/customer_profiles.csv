@@ -1,0 +1,5 @@
+customer_id,age,income_band,segment,goals,risk_tolerance
+cust_001,34,premium,frequent_traveler,"travel rewards, lounge access, low foreign transaction fees",medium
+cust_002,27,starter,young_professional,"cashback on everyday spend, no annual fee",low
+cust_003,42,mass_affluent,family_planner,"groceries, utilities, balance transfer",low
+cust_004,31,premium,digital_nomad,"travel rewards, dining, subscription credits",medium

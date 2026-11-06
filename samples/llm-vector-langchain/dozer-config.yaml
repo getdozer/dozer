@@ -1,0 +1,57 @@
+app_name: llm-vector-langchain-sample
+version: 1
+
+api:
+  rest:
+    port: 8080
+    host: "0.0.0.0"
+    cors: true
+  grpc:
+    port: 50051
+    host: "0.0.0.0"
+    cors: true
+    web: true
+
+connections:
+  - name: local_customer_data
+    config: !LocalStorage
+      details:
+        path: ./data
+      tables:
+        - !Table
+          name: customer_profiles
+          config: !CSV
+            path: customer_profiles
+            extension: .csv
+        - !Table
+          name: transactions
+          config: !CSV
+            path: transactions
+            extension: .csv
+        - !Table
+          name: credit_card_products
+          config: !CSV
+            path: credit_card_products
+            extension: .csv
+
+sources:
+  - name: customer_profiles
+    table_name: customer_profiles
+    connection: local_customer_data
+  - name: transactions
+    table_name: transactions
+    connection: local_customer_data
+  - name: credit_card_products
+    table_name: credit_card_products
+    connection: local_customer_data
+
+sinks:
+  - name: customer_profiles
+    config: !Dummy
+      table_name: customer_profiles
+  - name: transactions
+    config: !Dummy
+      table_name: transactions
+  - name: credit_card_products
+    config: !Dummy
+      table_name: credit_card_products
