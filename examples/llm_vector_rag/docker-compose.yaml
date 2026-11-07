@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: dozer_rag_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: banking
+    ports:
+      - "5432:5432"
+    command: ["postgres", "-c", "wal_level=logical"]
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d banking"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  dozer:
+    image: getdozer/dozer:latest
+    container_name: dozer_rag_engine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./dozer-config.yaml:/dozer-config.yaml:ro
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    command: ["dozer", "run", "--config-path", "/dozer-config.yaml"]
+
+  app:
+    build: .
+    container_name: dozer_rag_chatbot
+    depends_on:
+      - dozer
+    environment:
+      DOZER_API_URL: http://dozer:8080
+      CHROMA_PERSIST_DIR: /app/chroma_db
+    volumes:
+      - chroma_data:/app/chroma_db
+
+volumes:
+  chroma_data:
