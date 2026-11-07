@@ -1,0 +1,5 @@
+card_id,card_name,tier,min_credit_score,min_annual_income,annual_fee,primary_reward_category,cashback_pct,benefits_summary
+cc_platinum_travel,Dozer Horizon Reserve,infinite,740,100000,450,travel,5.0,5x points on flights and hotels with global airport lounge access and zero foreign transaction fees.
+cc_gold_dining,Dozer Gourmet Gold,gold,670,50000,95,dining,4.0,4% cashback on restaurants and food delivery plus complimentary dining concierge.
+cc_everyday_cash,Dozer Everyday Cashback,standard,600,25000,0,groceries,2.5,2.5% cashback on supermarkets and everyday essentials with zero annual fee.
+cc_tech_founder,Dozer Cloud & SaaS Elite,signature,760,120000,295,cloud_tech,4.5,4.5% rebates on cloud infrastructure, developer tools, and international business travel.

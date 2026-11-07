@@ -1,0 +1,8 @@
+tx_id,customer_id,merchant_category,amount,tx_timestamp
+1,101,travel,1450.00,2026-10-01T10:15:00Z
+2,101,dining,210.50,2026-10-03T19:40:00Z
+3,101,travel,890.00,2026-10-09T08:00:00Z
+4,102,dining,95.00,2026-10-02T12:30:00Z
+5,102,groceries,180.25,2026-10-05T17:20:00Z
+6,103,groceries,64.00,2026-10-04T15:10:00Z
+7,104,cloud_tech,3200.00,2026-10-06T09:00:00Z
