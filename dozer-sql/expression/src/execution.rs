@@ -20,6 +20,7 @@ use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
+    WasmUdf(crate::wasm::Udf),
     Column {
         index: usize,
     },
@@ -110,6 +111,7 @@ pub enum Expression {
 impl Expression {
     pub fn to_string(&self, schema: &Schema) -> String {
         match &self {
+            Expression::WasmUdf(udf) => udf.to_string(schema),
             Expression::Column { index } => schema.fields[*index].name.clone(),
             Expression::Literal(value) => format!("{}", value),
             Expression::UnaryOperator { operator, arg } => {
@@ -317,6 +319,7 @@ impl ExpressionType {
 impl Expression {
     pub fn evaluate(&mut self, record: &Record, schema: &Schema) -> Result<Field, Error> {
         match self {
+            Expression::WasmUdf(udf) => udf.evaluate(record, schema),
             Expression::Literal(field) => Ok(field.clone()),
             Expression::Column { index } => Ok(record.values[*index].clone()),
             Expression::BinaryOperator {
@@ -383,6 +386,7 @@ impl Expression {
 
     pub fn get_type(&self, schema: &Schema) -> Result<ExpressionType, Error> {
         match self {
+            Expression::WasmUdf(udf) => Ok(udf.get_type()),
             Expression::Literal(field) => {
                 let field_type = field.ty();
                 match field_type {
