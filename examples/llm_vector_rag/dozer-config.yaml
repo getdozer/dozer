@@ -1,0 +1,79 @@
+app_name: banking-rag-sample
+version: 1
+
+api:
+  rest:
+    port: 8080
+    cors: true
+  grpc:
+    port: 50051
+    cors: true
+
+connections:
+  - name: banking_db
+    db_type: Postgres
+    authentication: !Postgres
+      user: ${POSTGRES_USER:-postgres}
+      password: ${POSTGRES_PASSWORD:-postgres}
+      host: ${POSTGRES_HOST:-postgres}
+      port: ${POSTGRES_PORT:-5432}
+      database: ${POSTGRES_DB:-banking}
+
+sources:
+  - name: customers
+    table_name: customers
+    connection: banking_db
+    columns:
+      - id
+      - name
+      - email
+      - credit_score
+      - monthly_income
+
+  - name: transactions
+    table_name: transactions
+    connection: banking_db
+    columns:
+      - id
+      - customer_id
+      - category
+      - amount
+      - timestamp
+
+  - name: card_products
+    table_name: card_products
+    connection: banking_db
+    columns:
+      - id
+      - card_name
+      - target_category
+      - reward_rate
+      - annual_fee
+      - min_credit_score
+
+endpoints:
+  - name: customer_profiles
+    path: /customer_profiles
+    sql: |
+      SELECT 
+        c.id as customer_id,
+        c.name as customer_name,
+        c.credit_score,
+        c.monthly_income,
+        COUNT(t.id) as total_transactions,
+        COALESCE(SUM(t.amount), 0.0) as total_spent,
+        COALESCE(MAX(CASE WHEN t.category = 'Travel' THEN 1 ELSE 0 END), 0) as has_travel_spend,
+        COALESCE(MAX(CASE WHEN t.category = 'Dining' THEN 1 ELSE 0 END), 0) as has_dining_spend
+      FROM customers c
+      LEFT JOIN transactions t ON c.id = t.customer_id
+      GROUP BY c.id, c.name, c.credit_score, c.monthly_income;
+    index:
+      primary_key:
+        - customer_id
+
+  - name: available_cards
+    path: /available_cards
+    sql: SELECT id, card_name, target_category, reward_rate, annual_fee, min_credit_score FROM card_products;
+    index:
+      primary_key:
+        - id
