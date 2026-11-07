@@ -12,6 +12,8 @@ use crate::{aggregate::AggregateFunctionType, operator::BinaryOperatorType};
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("WASM UDF error: {0}")]
+    Wasm(String),
     #[error("Unsupported SQL expression: {0:?}")]
     UnsupportedExpression(Expr),
     #[error("Unsupported SQL function arg: {0:?}")]

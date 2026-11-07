@@ -83,6 +83,7 @@ pub fn statement_to_pipeline(
     udfs: Vec<UdfConfig>,
     runtime: Arc<Runtime>,
 ) -> Result<QueryContext, PipelineError> {
+    dozer_sql_expression::wasm::validate_udfs(&udfs)?;
     let dialect = DozerDialect {};
     let mut ctx = QueryContext::new(udfs, runtime);
     let is_top_select = true;

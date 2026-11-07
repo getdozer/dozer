@@ -1,0 +1,6 @@
+version: 1
+app_name: wasm-udf-example
+udfs:
+  wasm:
+    my_function: udfs/wasm/my_function
+sql: SELECT my_function(field1, field2) INTO result FROM input_rows;
