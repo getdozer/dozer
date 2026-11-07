@@ -36,1010 +36,729 @@ pub struct ExpressionBuilder {
     runtime: Arc<Runtime>,
 }
 
-impl ExpressionBuilder {
-    pub fn new(offset: usize, runtime: Arc<Runtime>) -> Self {
-        Self {
-            aggregations: Vec::new(),
-            offset,
-            runtime,
-        }
-    }
+struct ParseContext<'a> {
+    builder: &'a mut ExpressionBuilder,
+    parse_aggregations: bool,
+    schema: &'a Schema,
+    udfs: &'a [UdfConfig],
+}
 
-    pub fn from(offset: usize, aggregations: Vec<Expression>, runtime: Arc<Runtime>) -> Self {
-        Self {
-            aggregations,
-            offset,
-            runtime,
-        }
-    }
-
-    pub async fn build(
-        &mut self,
-        parse_aggregations: bool,
-        sql_expression: &SqlExpr,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        self.parse_sql_expression(parse_aggregations, sql_expression, schema, udfs)
-            .await
-    }
-
-    #[async_recursion::async_recursion]
-    pub async fn parse_sql_expression(
-        &mut self,
-        parse_aggregations: bool,
-        expression: &SqlExpr,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        match expression {
-            SqlExpr::Trim {
-                expr,
-                trim_where,
-                trim_what,
-            } => {
-                self.parse_sql_trim_function(
-                    parse_aggregations,
-                    expr,
-                    trim_where,
-                    trim_what,
-                    schema,
-                    udfs,
-                )
-                .await
-            }
-            SqlExpr::Identifier(ident) => Self::parse_sql_column(&[ident.clone()], schema),
-            SqlExpr::CompoundIdentifier(ident) => Self::parse_sql_column(ident, schema),
-            SqlExpr::Value(SqlValue::Number(n, _)) => Self::parse_sql_number(n),
-            SqlExpr::Value(SqlValue::Null) => Ok(Expression::Literal(Field::Null)),
-            SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
-                Self::parse_sql_string(s)
-            }
-            SqlExpr::UnaryOp { expr, op } => {
-                self.parse_sql_unary_op(parse_aggregations, op, expr, schema, udfs)
-                    .await
-            }
-            SqlExpr::BinaryOp { left, op, right } => {
-                self.parse_sql_binary_op(parse_aggregations, left, op, right, schema, udfs)
-                    .await
-            }
-            SqlExpr::Nested(expr) => {
-                self.parse_sql_expression(parse_aggregations, expr, schema, udfs)
-                    .await
-            }
-            SqlExpr::Function(sql_function) => {
-                self.parse_sql_function(parse_aggregations, sql_function, schema, udfs)
-                    .await
-            }
-            SqlExpr::Like {
-                negated,
-                expr,
-                pattern,
-                escape_char,
-            } => {
-                self.parse_sql_like_operator(
-                    parse_aggregations,
-                    negated,
-                    expr,
-                    pattern,
-                    escape_char,
-                    schema,
-                    udfs,
-                )
-                .await
-            }
-            SqlExpr::InList {
-                expr,
-                list,
-                negated,
-            } => {
-                self.parse_sql_in_list_operator(
-                    parse_aggregations,
-                    expr,
-                    list,
-                    *negated,
-                    schema,
-                    udfs,
-                )
-                .await
-            }
-
-            SqlExpr::Cast { expr, data_type } => {
-                self.parse_sql_cast_operator(parse_aggregations, expr, data_type, schema, udfs)
-                    .await
-            }
-            SqlExpr::Extract { field, expr } => {
-                self.parse_sql_extract_operator(parse_aggregations, field, expr, schema, udfs)
-                    .await
-            }
-            SqlExpr::Interval(Interval {
-                value,
-                leading_field,
-                leading_precision: _,
-                last_field: _,
-                fractional_seconds_precision: _,
-            }) => {
-                self.parse_sql_interval_expression(
-                    parse_aggregations,
-                    value,
-                    leading_field,
-                    schema,
-                    udfs,
-                )
-                .await
-            }
-            SqlExpr::Case {
-                operand,
-                conditions,
-                results,
-                else_result,
-            } => {
-                self.parse_sql_case_expression(
-                    parse_aggregations,
-                    operand,
-                    conditions,
-                    results,
-                    else_result,
-                    schema,
-                    udfs,
-                )
-                .await
-            }
-            SqlExpr::IsNull(expr) => {
-                self.parse_sql_isnull_operator(parse_aggregations, &false, expr, schema, udfs)
-                    .await
-            }
-            SqlExpr::IsNotNull(expr) => {
-                self.parse_sql_isnull_operator(parse_aggregations, &true, expr, schema, udfs)
-                    .await
-            }
-            _ => Err(Error::UnsupportedExpression(expression.clone())),
-        }
-    }
-
-    fn parse_sql_column(ident: &[Ident], schema: &Schema) -> Result<Expression, Error> {
-        let (src_field, src_table_or_alias, src_connection) = match ident.len() {
-            1 => (&ident[0].value, None, None),
-            2 => (&ident[1].value, Some(&ident[0].value), None),
-            3 => (
-                &ident[2].value,
-                Some(&ident[1].value),
-                Some(&ident[0].value),
-            ),
-            _ => {
-                return Err(Error::InvalidIdent(ident.to_vec()));
-            }
-        };
-
-        let matching_by_field: Vec<(usize, &FieldDefinition)> = schema
-            .fields
-            .iter()
-            .enumerate()
-            .filter(|(_idx, f)| &f.name == src_field)
-            .collect();
-
-        match matching_by_field.len() {
-            1 => Ok(Expression::Column {
-                index: matching_by_field[0].0,
-            }),
-            _ => match src_table_or_alias {
-                None => Err(Error::InvalidIdent(ident.to_vec())),
-                Some(src_table_or_alias) => {
-                    let matching_by_table_or_alias: Vec<(usize, &FieldDefinition)> =
-                        matching_by_field
-                            .into_iter()
-                            .filter(|(_idx, field)| match &field.source {
-                                SourceDefinition::Alias { name } => name == src_table_or_alias,
-                                SourceDefinition::Table {
-                                    name,
-                                    connection: _,
-                                } => name == src_table_or_alias,
-                                _ => false,
-                            })
-                            .collect();
-
-                    match matching_by_table_or_alias.len() {
-                        1 => Ok(Expression::Column {
-                            index: matching_by_table_or_alias[0].0,
-                        }),
-                        _ => match src_connection {
-                            None => Err(Error::InvalidIdent(ident.to_vec())),
-                            Some(src_connection) => {
-                                let matching_by_connection: Vec<(usize, &FieldDefinition)> =
-                                    matching_by_table_or_alias
-                                        .into_iter()
-                                        .filter(|(_idx, field)| match &field.source {
-                                            SourceDefinition::Table {
-                                                name: _,
-                                                connection,
-                                            } => connection == src_connection,
-                                            _ => false,
-                                        })
-                                        .collect();
-
-                                match matching_by_connection.len() {
-                                    1 => Ok(Expression::Column {
-                                        index: matching_by_connection[0].0,
-                                    }),
-                                    _ => Err(Error::InvalidIdent(ident.to_vec())),
-                                }
-                            }
-                        },
-                    }
+// Preserves the public crate methods on ExpressionBuilder while delegating
+// recursive AST traversal to cohesive free functions operating on ParseContext.
+macro_rules! impl_expression_builder_entrypoints {
+    () => {
+        impl ExpressionBuilder {
+            pub fn new(offset: usize, runtime: Arc<Runtime>) -> Self {
+                Self {
+                    aggregations: Vec::new(),
+                    offset,
+                    runtime,
                 }
-            },
-        }
-    }
+            }
 
-    async fn parse_sql_trim_function(
-        &mut self,
-        parse_aggregations: bool,
-        expr: &Expr,
-        trim_where: &Option<TrimWhereField>,
-        trim_what: &Option<Box<Expr>>,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        let arg = Box::new(
-            self.parse_sql_expression(parse_aggregations, expr, schema, udfs)
-                .await?,
-        );
-        let what = match trim_what {
-            Some(e) => Some(Box::new(
-                self.parse_sql_expression(parse_aggregations, e, schema, udfs)
-                    .await?,
-            )),
-            _ => None,
-        };
-        let typ = trim_where.as_ref().map(|e| match e {
-            TrimWhereField::Both => TrimType::Both,
-            TrimWhereField::Leading => TrimType::Leading,
-            TrimWhereField::Trailing => TrimType::Trailing,
+            pub fn from(
+                offset: usize,
+                aggregations: Vec<Expression>,
+                runtime: Arc<Runtime>,
+            ) -> Self {
+                Self {
+                    aggregations,
+                    offset,
+                    runtime,
+                }
+            }
+
+            pub async fn build(
+                &mut self,
+                parse_aggregations: bool,
+                sql_expression: &SqlExpr,
+                schema: &Schema,
+                udfs: &[UdfConfig],
+            ) -> Result<Expression, Error> {
+                self.parse_sql_expression(parse_aggregations, sql_expression, schema, udfs)
+                    .await
+            }
+
+            pub async fn parse_sql_expression(
+                &mut self,
+                parse_aggregations: bool,
+                expression: &SqlExpr,
+                schema: &Schema,
+                udfs: &[UdfConfig],
+            ) -> Result<Expression, Error> {
+                let mut ctx = ParseContext {
+                    builder: self,
+                    parse_aggregations,
+                    schema,
+                    udfs,
+                };
+                parse_expr(expression, &mut ctx).await
+            }
+
+            pub fn fullname_from_ident(ident: &[Ident]) -> String {
+                ident
+                    .iter()
+                    .map(|token| token.value.clone())
+                    .collect::<Vec<_>>()
+                    .join(".")
+            }
+
+            pub fn normalize_ident(id: &Ident) -> String {
+                id.value.clone()
+            }
+        }
+    };
+}
+
+impl_expression_builder_entrypoints!();
+
+#[async_recursion::async_recursion]
+async fn parse_expr(
+    expression: &SqlExpr,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    match expression {
+        SqlExpr::Identifier(ident) => parse_sql_column(&[ident.clone()], ctx.schema),
+        SqlExpr::CompoundIdentifier(ident) => parse_sql_column(ident, ctx.schema),
+        SqlExpr::Value(SqlValue::Number(n, _)) => parse_sql_number(n),
+        SqlExpr::Value(SqlValue::Null) => Ok(Expression::Literal(Field::Null)),
+        SqlExpr::Value(SqlValue::SingleQuotedString(s) | SqlValue::DoubleQuotedString(s)) => {
+            Ok(Expression::Literal(Field::String(s.to_owned())))
+        }
+        SqlExpr::UnaryOp { expr, op } => parse_sql_unary_op(op, expr, ctx).await,
+        SqlExpr::BinaryOp { .. } => parse_sql_binary_op(expression, ctx).await,
+        SqlExpr::Nested(expr) => parse_expr(expr, ctx).await,
+        SqlExpr::Function(sql_function) => parse_sql_function(sql_function, ctx).await,
+        other => parse_complex_expr(other, ctx).await,
+    }
+}
+
+async fn parse_complex_expr(
+    expression: &SqlExpr,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    match expression {
+        SqlExpr::Trim { .. } => parse_sql_trim_function(expression, ctx).await,
+        SqlExpr::Like { .. } => parse_sql_like_operator(expression, ctx).await,
+        SqlExpr::InList { .. } => parse_sql_in_list_operator(expression, ctx).await,
+        SqlExpr::Cast { expr, data_type } => parse_sql_cast_operator(expr, data_type, ctx).await,
+        SqlExpr::Extract { field, expr } => parse_sql_extract_operator(field, expr, ctx).await,
+        SqlExpr::Interval(Interval {
+            value,
+            leading_field,
+            ..
+        }) => parse_sql_interval_expression(value, leading_field, ctx).await,
+        SqlExpr::Case { .. } => parse_sql_case_expression(expression, ctx).await,
+        SqlExpr::IsNull(expr) => parse_sql_isnull_operator(false, expr, ctx).await,
+        SqlExpr::IsNotNull(expr) => parse_sql_isnull_operator(true, expr, ctx).await,
+        _ => Err(Error::UnsupportedExpression(expression.clone())),
+    }
+}
+
+fn parse_sql_column(ident: &[Ident], schema: &Schema) -> Result<Expression, Error> {
+    let (src_field, src_table_or_alias, src_connection) = split_column_ident(ident)?;
+    let matching_by_field: Vec<(usize, &FieldDefinition)> = schema
+        .fields
+        .iter()
+        .enumerate()
+        .filter(|(_idx, f)| &f.name == src_field)
+        .collect();
+
+    if matching_by_field.len() == 1 {
+        return Ok(Expression::Column {
+            index: matching_by_field[0].0,
         });
-        Ok(Expression::Trim { arg, what, typ })
     }
-
-    async fn aggr_function_check(
-        &mut self,
-        function_name: String,
-        parse_aggregations: bool,
-        sql_function: &Function,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Option<Expression> {
-        if !parse_aggregations {
-            return None;
+    let Some(table_or_alias) = src_table_or_alias else {
+        return Err(Error::InvalidIdent(ident.to_vec()));
+    };
+    let matching_by_table = filter_candidates(matching_by_field, |source| match source {
+        SourceDefinition::Alias { name } | SourceDefinition::Table { name, .. } => {
+            name == table_or_alias
         }
-
-        let aggr = AggregateFunctionType::new(function_name.as_str())?;
-
-        let mut arg_expr: Vec<Expression> = Vec::new();
-        for arg in &sql_function.args {
-            let aggregation = self
-                .parse_sql_function_arg(true, arg, schema, udfs)
-                .await
-                .ok()?;
-            arg_expr.push(aggregation);
-        }
-        let measure = Expression::AggregateFunction {
-            fun: aggr,
-            args: arg_expr,
-        };
-        let index = match self
-            .aggregations
-            .iter()
-            .enumerate()
-            .find(|e| e.1 == &measure)
-        {
-            Some((index, _existing)) => index,
-            _ => {
-                self.aggregations.push(measure);
-                self.aggregations.len() - 1
-            }
-        };
-        Some(Expression::Column {
-            index: self.offset + index,
-        })
+        _ => false,
+    });
+    if matching_by_table.len() == 1 {
+        return Ok(Expression::Column {
+            index: matching_by_table[0].0,
+        });
     }
-
-    async fn scalar_function_check(
-        &mut self,
-        function_name: String,
-        parse_aggregations: bool,
-        sql_function: &Function,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Option<Expression> {
-        let mut function_args: Vec<Expression> = Vec::new();
-        for arg in &sql_function.args {
-            function_args.push(
-                self.parse_sql_function_arg(parse_aggregations, arg, schema, udfs)
-                    .await
-                    .ok()?,
-            );
-        }
-
-        let sft = ScalarFunctionType::new(function_name.as_str())?;
-        Some(ScalarFunction {
-            fun: sft,
-            args: function_args,
-        })
+    let Some(connection) = src_connection else {
+        return Err(Error::InvalidIdent(ident.to_vec()));
+    };
+    let matching_by_conn = filter_candidates(matching_by_table, |source| {
+        matches!(source, SourceDefinition::Table { connection: conn, .. } if conn == connection)
+    });
+    if matching_by_conn.len() == 1 {
+        return Ok(Expression::Column {
+            index: matching_by_conn[0].0,
+        });
     }
+    Err(Error::InvalidIdent(ident.to_vec()))
+}
 
-    async fn geo_expr_check(
-        &mut self,
-        function_name: String,
-        parse_aggregations: bool,
-        sql_function: &Function,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Option<Expression> {
-        let mut function_args: Vec<Expression> = Vec::new();
-        for arg in &sql_function.args {
-            function_args.push(
-                self.parse_sql_function_arg(parse_aggregations, arg, schema, udfs)
-                    .await
-                    .ok()?,
-            );
-        }
+async fn parse_sql_trim_function(
+    expression: &SqlExpr,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    let SqlExpr::Trim {
+        expr,
+        trim_where,
+        trim_what,
+    } = expression
+    else {
+        return Err(Error::UnsupportedExpression(expression.clone()));
+    };
+    let arg = Box::new(parse_expr(expr, ctx).await?);
+    let what = match trim_what {
+        Some(e) => Some(Box::new(parse_expr(e, ctx).await?)),
+        None => None,
+    };
+    let typ = trim_where.as_ref().map(|e| match e {
+        TrimWhereField::Both => TrimType::Both,
+        TrimWhereField::Leading => TrimType::Leading,
+        TrimWhereField::Trailing => TrimType::Trailing,
+    });
+    Ok(Expression::Trim { arg, what, typ })
+}
 
-        let gft = GeoFunctionType::new(function_name.as_str())?;
-        Some(GeoFunction {
-            fun: gft,
-            args: function_args,
-        })
-    }
-
-    fn datetime_expr_check(&mut self, function_name: String) -> Option<Expression> {
-        let dtf = DateTimeFunctionType::new(function_name.as_str())?;
-        Some(Now { fun: dtf })
-    }
-
-    async fn json_func_check(
-        &mut self,
-        function_name: String,
-        parse_aggregations: bool,
-        sql_function: &Function,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Option<Expression> {
-        let mut function_args: Vec<Expression> = Vec::new();
-        for arg in &sql_function.args {
-            function_args.push(
-                self.parse_sql_function_arg(parse_aggregations, arg, schema, udfs)
-                    .await
-                    .ok()?,
-            );
-        }
-
-        let jft = JsonFunctionType::new(function_name.as_str())?;
-        Some(Expression::Json {
-            fun: jft,
-            args: function_args,
-        })
-    }
-
-    async fn conditional_expr_check(
-        &mut self,
-        function_name: String,
-        parse_aggregations: bool,
-        sql_function: &Function,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Option<Expression> {
-        let mut function_args: Vec<Expression> = Vec::new();
-        for arg in &sql_function.args {
-            function_args.push(
-                self.parse_sql_function_arg(parse_aggregations, arg, schema, udfs)
-                    .await
-                    .ok()?,
-            );
-        }
-
-        let cet = ConditionalExpressionType::new(function_name.as_str())?;
-        Some(ConditionalExpression {
-            fun: cet,
-            args: function_args,
-        })
-    }
-
-    async fn parse_sql_function(
-        &mut self,
-        parse_aggregations: bool,
-        sql_function: &Function,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        let function_name = sql_function.name.to_string().to_lowercase();
-
-        #[cfg(feature = "python")]
-        if function_name.starts_with("py_") {
-            // The function is from python udf.
-            let udf_name = function_name.strip_prefix("py_").unwrap();
-            return self
-                .parse_python_udf(udf_name, sql_function, schema, udfs)
-                .await;
-        }
-
-        if let Some(aggr_check) = self
-            .aggr_function_check(
-                function_name.clone(),
-                parse_aggregations,
-                sql_function,
-                schema,
-                udfs,
-            )
-            .await
-        {
-            return Ok(aggr_check);
-        }
-
-        if let Some(scalar_check) = self
-            .scalar_function_check(
-                function_name.clone(),
-                parse_aggregations,
-                sql_function,
-                schema,
-                udfs,
-            )
-            .await
-        {
-            return Ok(scalar_check);
-        }
-
-        if let Some(geo_check) = self
-            .geo_expr_check(
-                function_name.clone(),
-                parse_aggregations,
-                sql_function,
-                schema,
-                udfs,
-            )
-            .await
-        {
-            return Ok(geo_check);
-        }
-
-        if let Some(conditional_check) = self
-            .conditional_expr_check(
-                function_name.clone(),
-                parse_aggregations,
-                sql_function,
-                schema,
-                udfs,
-            )
-            .await
-        {
-            return Ok(conditional_check);
-        }
-
-        if let Some(datetime_check) = self.datetime_expr_check(function_name.clone()) {
-            return Ok(datetime_check);
-        }
-
-        if let Some(json_check) = self
-            .json_func_check(
-                function_name.clone(),
-                parse_aggregations,
-                sql_function,
-                schema,
-                udfs,
-            )
-            .await
-        {
-            return Ok(json_check);
-        }
-
-        // config check for udfs
-        let udf_type = udfs.iter().find(|udf| udf.name == function_name);
-        if let Some(udf_type) = udf_type {
-            return match &udf_type.config {
-                UdfType::Onnx(config) => {
-                    #[cfg(feature = "onnx")]
-                    {
-                        self.parse_onnx_udf(
-                            function_name.clone(),
-                            config,
-                            sql_function,
-                            schema,
-                            udfs,
-                        )
-                        .await
-                    }
-
-                    #[cfg(not(feature = "onnx"))]
-                    {
-                        let _ = config;
-                        Err(Error::OnnxNotEnabled)
-                    }
-                }
-
-                UdfType::JavaScript(config) => {
-                    #[cfg(feature = "javascript")]
-                    {
-                        self.parse_javascript_udf(
-                            function_name.clone(),
-                            config,
-                            sql_function,
-                            schema,
-                            udfs,
-                        )
-                        .await
-                    }
-
-                    #[cfg(not(feature = "javascript"))]
-                    {
-                        let _ = config;
-                        Err(Error::JavaScriptNotEnabled)
-                    }
-                }
-            };
-        }
-
-        Err(Error::UnknownFunction(function_name.clone()))
-    }
-
-    async fn parse_sql_function_arg(
-        &mut self,
-        parse_aggregations: bool,
-        argument: &FunctionArg,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        match argument {
-            FunctionArg::Named {
-                name: _,
-                arg: FunctionArgExpr::Expr(arg),
-            } => {
-                self.parse_sql_expression(parse_aggregations, arg, schema, udfs)
-                    .await
-            }
-            FunctionArg::Named {
-                name: _,
-                arg: FunctionArgExpr::Wildcard,
-            } => Ok(Expression::Literal(Field::Null)),
-            FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
-                self.parse_sql_expression(parse_aggregations, arg, schema, udfs)
-                    .await
-            }
-            FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => Ok(Expression::Literal(Field::Null)),
-            _ => Err(Error::UnsupportedFunctionArg(argument.clone())),
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    async fn parse_sql_case_expression(
-        &mut self,
-        parse_aggregations: bool,
-        operand: &Option<Box<Expr>>,
-        conditions: &[Expr],
-        results: &[Expr],
-        else_result: &Option<Box<Expr>>,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        let op = match operand {
-            Some(o) => Some(Box::new(
-                self.parse_sql_expression(parse_aggregations, o, schema, udfs)
-                    .await?,
-            )),
-            None => None,
-        };
-        let mut conds = vec![];
-        for cond in conditions {
-            conds.push(
-                self.parse_sql_expression(parse_aggregations, cond, schema, udfs)
-                    .await?,
-            );
-        }
-        let mut res = vec![];
-        for r in results {
-            res.push(
-                self.parse_sql_expression(parse_aggregations, r, schema, udfs)
-                    .await?,
-            );
-        }
-        let else_res = match else_result {
-            Some(r) => Some(Box::new(
-                self.parse_sql_expression(parse_aggregations, r, schema, udfs)
-                    .await?,
-            )),
-            None => None,
-        };
-
-        Ok(Expression::Case {
-            operand: op,
-            conditions: conds,
-            results: res,
-            else_result: else_res,
-        })
-    }
-
-    async fn parse_sql_interval_expression(
-        &mut self,
-        parse_aggregations: bool,
-        value: &Expr,
-        leading_field: &Option<DateTimeField>,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        let right = self
-            .parse_sql_expression(parse_aggregations, value, schema, udfs)
-            .await?;
-        if let Some(leading_field) = leading_field {
-            Ok(Expression::DateTimeFunction {
-                fun: DateTimeFunctionType::Interval {
-                    field: *leading_field,
-                },
-                arg: Box::new(right),
-            })
-        } else {
-            Err(Error::MissingLeadingFieldInInterval)
-        }
-    }
-
-    async fn parse_sql_unary_op(
-        &mut self,
-        parse_aggregations: bool,
-        op: &SqlUnaryOperator,
-        expr: &SqlExpr,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        let arg = Box::new(
-            self.parse_sql_expression(parse_aggregations, expr, schema, udfs)
-                .await?,
-        );
-        let operator = match op {
-            SqlUnaryOperator::Not => UnaryOperatorType::Not,
-            SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
-            SqlUnaryOperator::Minus => UnaryOperatorType::Minus,
-            _ => return Err(Error::UnsupportedUnaryOperator(*op)),
-        };
-
-        Ok(Expression::UnaryOperator { operator, arg })
-    }
-
-    async fn parse_sql_binary_op(
-        &mut self,
-        parse_aggregations: bool,
-        left: &SqlExpr,
-        op: &SqlBinaryOperator,
-        right: &SqlExpr,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        let left_op = self
-            .parse_sql_expression(parse_aggregations, left, schema, udfs)
-            .await?;
-        let right_op = self
-            .parse_sql_expression(parse_aggregations, right, schema, udfs)
-            .await?;
-
-        let operator = match op {
-            SqlBinaryOperator::Gt => BinaryOperatorType::Gt,
-            SqlBinaryOperator::GtEq => BinaryOperatorType::Gte,
-            SqlBinaryOperator::Lt => BinaryOperatorType::Lt,
-            SqlBinaryOperator::LtEq => BinaryOperatorType::Lte,
-            SqlBinaryOperator::Eq => BinaryOperatorType::Eq,
-            SqlBinaryOperator::NotEq => BinaryOperatorType::Ne,
-            SqlBinaryOperator::Plus => BinaryOperatorType::Add,
-            SqlBinaryOperator::Minus => BinaryOperatorType::Sub,
-            SqlBinaryOperator::Multiply => BinaryOperatorType::Mul,
-            SqlBinaryOperator::Divide => BinaryOperatorType::Div,
-            SqlBinaryOperator::Modulo => BinaryOperatorType::Mod,
-            SqlBinaryOperator::And => BinaryOperatorType::And,
-            SqlBinaryOperator::Or => BinaryOperatorType::Or,
-            _ => return Err(Error::UnsupportedBinaryOperator(op.clone())),
-        };
-
-        Ok(Expression::BinaryOperator {
-            left: Box::new(left_op),
-            operator,
-            right: Box::new(right_op),
-        })
-    }
-
-    #[cfg(not(feature = "bigdecimal"))]
-    fn parse_sql_number(n: &str) -> Result<Expression, Error> {
-        match n.parse::<i64>() {
-            Ok(n) => Ok(Expression::Literal(Field::Int(n))),
-            Err(_) => match n.parse::<f64>() {
-                Ok(f) => Ok(Expression::Literal(Field::Float(OrderedFloat(f)))),
-                Err(_) => Err(Error::NotANumber(n.to_string())),
-            },
-        }
-    }
-
-    #[cfg(feature = "bigdecimal")]
-    fn parse_sql_number(n: &bigdecimal::BigDecimal) -> Result<Expression, Error> {
-        use bigdecimal::ToPrimitive;
-        if n.is_integer() {
-            Ok(Expression::Literal(Field::Int(n.to_i64().unwrap())))
-        } else {
-            match n.to_f64() {
-                Some(f) => Ok(Expression::Literal(Field::Float(OrderedFloat(f)))),
-                None => Err(Error::NotANumber(n.to_string())),
+async fn parse_function_args(
+    args: &[FunctionArg],
+    parse_aggregations: bool,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Vec<Expression>, Error> {
+    let prev = ctx.parse_aggregations;
+    ctx.parse_aggregations = parse_aggregations;
+    let mut parsed = Vec::with_capacity(args.len());
+    for arg in args {
+        let res = parse_sql_function_arg(arg, ctx).await;
+        match res {
+            Ok(expr) => parsed.push(expr),
+            Err(err) => {
+                ctx.parse_aggregations = prev;
+                return Err(err);
             }
         }
     }
+    ctx.parse_aggregations = prev;
+    Ok(parsed)
+}
 
-    #[allow(clippy::too_many_arguments)]
-    async fn parse_sql_like_operator(
-        &mut self,
-        parse_aggregations: bool,
-        negated: &bool,
-        expr: &Expr,
-        pattern: &Expr,
-        escape_char: &Option<char>,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        let arg = self
-            .parse_sql_expression(parse_aggregations, expr, schema, udfs)
-            .await?;
-        let pattern = self
-            .parse_sql_expression(parse_aggregations, pattern, schema, udfs)
-            .await?;
-        let like_expression = Expression::Like {
-            arg: Box::new(arg),
-            pattern: Box::new(pattern),
-            escape: *escape_char,
-        };
-        if *negated {
-            Ok(Expression::UnaryOperator {
-                operator: UnaryOperatorType::Not,
-                arg: Box::new(like_expression),
-            })
-        } else {
-            Ok(like_expression)
+async fn aggr_function_check(
+    function_name: &str,
+    sql_function: &Function,
+    ctx: &mut ParseContext<'_>,
+) -> Option<Expression> {
+    if !ctx.parse_aggregations {
+        return None;
+    }
+    let aggr = AggregateFunctionType::new(function_name)?;
+    let arg_expr = parse_function_args(&sql_function.args, true, ctx)
+        .await
+        .ok()?;
+    let measure = Expression::AggregateFunction {
+        fun: aggr,
+        args: arg_expr,
+    };
+    let index = match ctx
+        .builder
+        .aggregations
+        .iter()
+        .enumerate()
+        .find(|e| e.1 == &measure)
+    {
+        Some((index, _existing)) => index,
+        None => {
+            ctx.builder.aggregations.push(measure);
+            ctx.builder.aggregations.len() - 1
         }
-    }
+    };
+    Some(Expression::Column {
+        index: ctx.builder.offset + index,
+    })
+}
 
-    async fn parse_sql_extract_operator(
-        &mut self,
-        parse_aggregations: bool,
-        field: &sqlparser::ast::DateTimeField,
-        expr: &Expr,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        let right = self
-            .parse_sql_expression(parse_aggregations, expr, schema, udfs)
-            .await?;
-        Ok(Expression::DateTimeFunction {
-            fun: DateTimeFunctionType::Extract { field: *field },
-            arg: Box::new(right),
-        })
+async fn builtin_function_check(
+    function_name: &str,
+    sql_function: &Function,
+    ctx: &mut ParseContext<'_>,
+) -> Option<Expression> {
+    if let Some(dtf) = DateTimeFunctionType::new(function_name) {
+        return Some(Now { fun: dtf });
     }
+    let parse_aggr = ctx.parse_aggregations;
+    let args = parse_function_args(&sql_function.args, parse_aggr, ctx)
+        .await
+        .ok()?;
+    if let Some(sft) = ScalarFunctionType::new(function_name) {
+        return Some(ScalarFunction { fun: sft, args });
+    }
+    if let Some(gft) = GeoFunctionType::new(function_name) {
+        return Some(GeoFunction { fun: gft, args });
+    }
+    if let Some(cet) = ConditionalExpressionType::new(function_name) {
+        return Some(ConditionalExpression { fun: cet, args });
+    }
+    if let Some(jft) = JsonFunctionType::new(function_name) {
+        return Some(Expression::Json { fun: jft, args });
+    }
+    None
+}
 
-    async fn parse_sql_cast_operator(
-        &mut self,
-        parse_aggregations: bool,
-        expr: &Expr,
-        data_type: &DataType,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        let expression = self
-            .parse_sql_expression(parse_aggregations, expr, schema, udfs)
-            .await?;
-        let cast_to = match data_type {
-            DataType::Decimal(_) => CastOperatorType(FieldType::Decimal),
-            DataType::Binary(_) => CastOperatorType(FieldType::Binary),
-            DataType::Float(_) => CastOperatorType(FieldType::Float),
-            DataType::Int(_) => CastOperatorType(FieldType::Int),
-            DataType::Integer(_) => CastOperatorType(FieldType::Int),
-            DataType::UnsignedInt(_) => CastOperatorType(FieldType::UInt),
-            DataType::UnsignedInteger(_) => CastOperatorType(FieldType::UInt),
-            DataType::Boolean => CastOperatorType(FieldType::Boolean),
-            DataType::Date => CastOperatorType(FieldType::Date),
-            DataType::Timestamp(..) => CastOperatorType(FieldType::Timestamp),
-            DataType::Text => CastOperatorType(FieldType::Text),
-            DataType::String => CastOperatorType(FieldType::String),
-            DataType::JSON => CastOperatorType(FieldType::Json),
-            DataType::Custom(name, ..) => {
-                if name.to_string().to_lowercase() == "uint" {
-                    CastOperatorType(FieldType::UInt)
-                } else if name.to_string().to_lowercase() == "u128" {
-                    CastOperatorType(FieldType::U128)
-                } else if name.to_string().to_lowercase() == "i128" {
-                    CastOperatorType(FieldType::I128)
-                } else {
-                    return Err(Error::UnsupportedDataType(data_type.clone()));
-                }
-            }
-            _ => Err(Error::UnsupportedDataType(data_type.clone()))?,
-        };
-        Ok(Expression::Cast {
-            arg: Box::new(expression),
-            typ: cast_to,
-        })
-    }
-
-    fn parse_sql_string(s: &str) -> Result<Expression, Error> {
-        Ok(Expression::Literal(Field::String(s.to_owned())))
-    }
-
-    pub fn fullname_from_ident(ident: &[Ident]) -> String {
-        let mut ident_tokens = vec![];
-        for token in ident.iter() {
-            ident_tokens.push(token.value.clone());
-        }
-        ident_tokens.join(".")
-    }
-
-    pub fn normalize_ident(id: &Ident) -> String {
-        match id.quote_style {
-            Some(_) => id.value.clone(),
-            None => id.value.clone(),
-        }
-    }
+async fn parse_sql_function(
+    sql_function: &Function,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    let function_name = sql_function.name.to_string().to_lowercase();
 
     #[cfg(feature = "python")]
-    async fn parse_python_udf(
-        &mut self,
-        name: &str,
-        function: &Function,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        use crate::python_udf::Error::{FailedToParseReturnType, MissingReturnType};
+    if let Some(udf_name) = function_name.strip_prefix("py_") {
+        return parse_python_udf(udf_name, sql_function, ctx).await;
+    }
 
-        // First, get python function define by name.
-        // Then, transfer python function to Expression::PythonUDF
-        let mut args = vec![];
-        for argument in &function.args {
-            let arg = self
-                .parse_sql_function_arg(false, argument, schema, udfs)
-                .await?;
-            args.push(arg);
+    if let Some(aggr_expr) = aggr_function_check(&function_name, sql_function, ctx).await {
+        return Ok(aggr_expr);
+    }
+
+    if let Some(builtin_expr) = builtin_function_check(&function_name, sql_function, ctx).await {
+        return Ok(builtin_expr);
+    }
+
+    if let Some(udf_def) = ctx
+        .udfs
+        .iter()
+        .find(|udf| udf.name == function_name)
+        .cloned()
+    {
+        return parse_configured_udf(&udf_def, sql_function, ctx).await;
+    }
+
+    Err(Error::UnknownFunction(function_name))
+}
+
+async fn parse_configured_udf(
+    udf_def: &UdfConfig,
+    sql_function: &Function,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    let args = parse_function_args(&sql_function.args, false, ctx).await?;
+    match &udf_def.config {
+        UdfType::Onnx(config) => {
+            #[cfg(feature = "onnx")]
+            {
+                build_onnx_udf(udf_def.name.clone(), config, args, ctx.schema)
+            }
+            #[cfg(not(feature = "onnx"))]
+            {
+                let _ = (config, args);
+                Err(Error::OnnxNotEnabled)
+            }
         }
+        UdfType::JavaScript(config) => {
+            #[cfg(feature = "javascript")]
+            {
+                build_javascript_udf(udf_def.name.clone(), config, args, ctx).await
+            }
+            #[cfg(not(feature = "javascript"))]
+            {
+                let _ = (config, args);
+                Err(Error::JavaScriptNotEnabled)
+            }
+        }
+        UdfType::Wasm(config) => {
+            #[cfg(feature = "wasm")]
+            {
+                let udf = crate::wasm::Udf::new(
+                    udf_def.name.clone(),
+                    config.module.clone(),
+                    args,
+                    ctx.schema,
+                )?;
+                Ok(Expression::WasmUdf(udf))
+            }
+            #[cfg(not(feature = "wasm"))]
+            {
+                let _ = (config, args);
+                Err(Error::WasmNotEnabled)
+            }
+        }
+    }
+}
 
-        let return_type = {
-            let ident = function
-                .return_type
-                .as_ref()
-                .ok_or_else(|| MissingReturnType)?;
+async fn parse_sql_function_arg(
+    argument: &FunctionArg,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    match argument {
+        FunctionArg::Named {
+            arg: FunctionArgExpr::Expr(arg),
+            ..
+        }
+        | FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => parse_expr(arg, ctx).await,
+        FunctionArg::Named {
+            arg: FunctionArgExpr::Wildcard,
+            ..
+        }
+        | FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => Ok(Expression::Literal(Field::Null)),
+        _ => Err(Error::UnsupportedFunctionArg(argument.clone())),
+    }
+}
 
-            FieldType::try_from(ident.value.as_str()).map_err(FailedToParseReturnType)?
-        };
+async fn parse_sql_case_expression(
+    expression: &SqlExpr,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    let SqlExpr::Case {
+        operand,
+        conditions,
+        results,
+        else_result,
+    } = expression
+    else {
+        return Err(Error::UnsupportedExpression(expression.clone()));
+    };
+    let op = match operand {
+        Some(o) => Some(Box::new(parse_expr(o, ctx).await?)),
+        None => None,
+    };
+    let conds = parse_expr_slice(conditions, ctx).await?;
+    let res = parse_expr_slice(results, ctx).await?;
+    let else_res = match else_result {
+        Some(r) => Some(Box::new(parse_expr(r, ctx).await?)),
+        None => None,
+    };
 
-        Ok(Expression::PythonUDF {
-            name: name.to_string(),
-            args,
-            return_type,
+    Ok(Expression::Case {
+        operand: op,
+        conditions: conds,
+        results: res,
+        else_result: else_res,
+    })
+}
+
+async fn parse_expr_slice(
+    exprs: &[Expr],
+    ctx: &mut ParseContext<'_>,
+) -> Result<Vec<Expression>, Error> {
+    let mut parsed = Vec::with_capacity(exprs.len());
+    for expr in exprs {
+        parsed.push(parse_expr(expr, ctx).await?);
+    }
+    Ok(parsed)
+}
+
+async fn parse_sql_interval_expression(
+    value: &Expr,
+    leading_field: &Option<DateTimeField>,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    let right = parse_expr(value, ctx).await?;
+    if let Some(leading_field) = leading_field {
+        Ok(Expression::DateTimeFunction {
+            fun: DateTimeFunctionType::Interval {
+                field: *leading_field,
+            },
+            arg: Box::new(right),
         })
+    } else {
+        Err(Error::MissingLeadingFieldInInterval)
     }
+}
 
-    #[cfg(feature = "onnx")]
-    async fn parse_onnx_udf(
-        &mut self,
-        name: String,
-        config: &dozer_types::models::udf_config::OnnxConfig,
-        function: &Function,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        use crate::error::Error::Onnx;
-        use crate::onnx::error::Error::OnnxOrtErr;
+async fn parse_sql_unary_op(
+    op: &SqlUnaryOperator,
+    expr: &SqlExpr,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    let arg = Box::new(parse_expr(expr, ctx).await?);
+    let operator = match op {
+        SqlUnaryOperator::Not => UnaryOperatorType::Not,
+        SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
+        SqlUnaryOperator::Minus => UnaryOperatorType::Minus,
+        _ => return Err(Error::UnsupportedUnaryOperator(*op)),
+    };
 
-        // First, get onnx function define by name.
-        // Then, transfer onnx function to Expression::OnnxUDF
-        use crate::onnx::utils::{onnx_input_validation, onnx_output_validation};
-        use ort::{Environment, GraphOptimizationLevel, LoggingLevel, SessionBuilder};
-        use std::path::Path;
+    Ok(Expression::UnaryOperator { operator, arg })
+}
 
-        let mut args = vec![];
-        for argument in &function.args {
-            let arg = self
-                .parse_sql_function_arg(false, argument, schema, udfs)
-                .await?;
-            args.push(arg);
+async fn parse_sql_binary_op(
+    expression: &SqlExpr,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    let SqlExpr::BinaryOp { left, op, right } = expression else {
+        return Err(Error::UnsupportedExpression(expression.clone()));
+    };
+    let left_op = parse_expr(left, ctx).await?;
+    let right_op = parse_expr(right, ctx).await?;
+    let operator = map_sql_binary_operator(op)?;
+
+    Ok(Expression::BinaryOperator {
+        left: Box::new(left_op),
+        operator,
+        right: Box::new(right_op),
+    })
+}
+
+#[cfg(not(feature = "bigdecimal"))]
+fn parse_sql_number(n: &str) -> Result<Expression, Error> {
+    match n.parse::<i64>() {
+        Ok(n) => Ok(Expression::Literal(Field::Int(n))),
+        Err(_) => match n.parse::<f64>() {
+            Ok(f) => Ok(Expression::Literal(Field::Float(OrderedFloat(f)))),
+            Err(_) => Err(Error::NotANumber(n.to_string())),
+        },
+    }
+}
+
+#[cfg(feature = "bigdecimal")]
+fn parse_sql_number(n: &bigdecimal::BigDecimal) -> Result<Expression, Error> {
+    use bigdecimal::ToPrimitive;
+    if n.is_integer() {
+        Ok(Expression::Literal(Field::Int(n.to_i64().unwrap())))
+    } else {
+        match n.to_f64() {
+            Some(f) => Ok(Expression::Literal(Field::Float(OrderedFloat(f)))),
+            None => Err(Error::NotANumber(n.to_string())),
         }
+    }
+}
 
-        let environment = Environment::builder()
-            .with_name("dozer_onnx")
-            .with_log_level(LoggingLevel::Verbose)
-            .build()
-            .map_err(|e| Onnx(OnnxOrtErr(e)))?
-            .into_arc();
-
-        let session = SessionBuilder::new(&environment)
-            .map_err(|e| Onnx(OnnxOrtErr(e)))?
-            .with_optimization_level(GraphOptimizationLevel::Level1)
-            .map_err(|e| Onnx(OnnxOrtErr(e)))?
-            .with_intra_threads(1)
-            .map_err(|e| Onnx(OnnxOrtErr(e)))?
-            .with_model_from_file(Path::new(config.path.as_str()))
-            .map_err(|e| Onnx(OnnxOrtErr(e)))?;
-
-        // input number, type, shape validation
-        onnx_input_validation(schema, &args, &session.inputs)?;
-        // output number, type, shape validation
-        onnx_output_validation(&session.outputs)?;
-
-        Ok(Expression::OnnxUDF {
-            name,
-            session: crate::onnx::DozerSession(session.into()),
-            args,
+async fn parse_sql_like_operator(
+    expression: &SqlExpr,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    let SqlExpr::Like {
+        negated,
+        expr,
+        pattern,
+        escape_char,
+    } = expression
+    else {
+        return Err(Error::UnsupportedExpression(expression.clone()));
+    };
+    let arg = parse_expr(expr, ctx).await?;
+    let pattern = parse_expr(pattern, ctx).await?;
+    let like_expression = Expression::Like {
+        arg: Box::new(arg),
+        pattern: Box::new(pattern),
+        escape: *escape_char,
+    };
+    if *negated {
+        Ok(Expression::UnaryOperator {
+            operator: UnaryOperatorType::Not,
+            arg: Box::new(like_expression),
         })
+    } else {
+        Ok(like_expression)
     }
+}
 
-    #[cfg(feature = "javascript")]
-    async fn parse_javascript_udf(
-        &mut self,
-        name: String,
-        config: &dozer_types::models::udf_config::JavaScriptConfig,
-        function: &Function,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        let mut args = vec![];
-        for argument in &function.args {
-            let arg = self
-                .parse_sql_function_arg(false, argument, schema, udfs)
-                .await?;
-            args.push(arg);
-        }
+async fn parse_sql_extract_operator(
+    field: &sqlparser::ast::DateTimeField,
+    expr: &Expr,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    let right = parse_expr(expr, ctx).await?;
+    Ok(Expression::DateTimeFunction {
+        fun: DateTimeFunctionType::Extract { field: *field },
+        arg: Box::new(right),
+    })
+}
 
-        use crate::javascript::{validate_args, Udf};
-        validate_args(name.clone(), &args, schema)?;
-        let udf = Udf::new(
-            self.runtime.clone(),
-            name,
-            config.module.clone(),
-            args.remove(0),
-        )
-        .await?;
-        Ok(Expression::JavaScriptUdf(udf))
+async fn parse_sql_cast_operator(
+    expr: &Expr,
+    data_type: &DataType,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    let expression = parse_expr(expr, ctx).await?;
+    let cast_to = map_sql_cast_type(data_type)?;
+    Ok(Expression::Cast {
+        arg: Box::new(expression),
+        typ: cast_to,
+    })
+}
+
+#[cfg(feature = "python")]
+async fn parse_python_udf(
+    name: &str,
+    function: &Function,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    use crate::python_udf::Error::{FailedToParseReturnType, MissingReturnType};
+
+    let args = parse_function_args(&function.args, false, ctx).await?;
+
+    let ident = function
+        .return_type
+        .as_ref()
+        .ok_or_else(|| MissingReturnType)?;
+    let return_type = FieldType::try_from(ident.value.as_str()).map_err(FailedToParseReturnType)?;
+
+    Ok(Expression::PythonUDF {
+        name: name.to_string(),
+        args,
+        return_type,
+    })
+}
+
+#[cfg(feature = "onnx")]
+fn build_onnx_udf(
+    name: String,
+    config: &dozer_types::models::udf_config::OnnxConfig,
+    args: Vec<Expression>,
+    schema: &Schema,
+) -> Result<Expression, Error> {
+    use crate::error::Error::Onnx;
+    use crate::onnx::error::Error::OnnxOrtErr;
+    use crate::onnx::utils::{onnx_input_validation, onnx_output_validation};
+    use ort::{Environment, GraphOptimizationLevel, LoggingLevel, SessionBuilder};
+    use std::path::Path;
+
+    let environment = Environment::builder()
+        .with_name("dozer_onnx")
+        .with_log_level(LoggingLevel::Verbose)
+        .build()
+        .map_err(|e| Onnx(OnnxOrtErr(e)))?
+        .into_arc();
+
+    let session = SessionBuilder::new(&environment)
+        .map_err(|e| Onnx(OnnxOrtErr(e)))?
+        .with_optimization_level(GraphOptimizationLevel::Level1)
+        .map_err(|e| Onnx(OnnxOrtErr(e)))?
+        .with_intra_threads(1)
+        .map_err(|e| Onnx(OnnxOrtErr(e)))?
+        .with_model_from_file(Path::new(config.path.as_str()))
+        .map_err(|e| Onnx(OnnxOrtErr(e)))?;
+
+    onnx_input_validation(schema, &args, &session.inputs)?;
+    onnx_output_validation(&session.outputs)?;
+
+    Ok(Expression::OnnxUDF {
+        name,
+        session: crate::onnx::DozerSession(session.into()),
+        args,
+    })
+}
+
+#[cfg(feature = "javascript")]
+async fn build_javascript_udf(
+    name: String,
+    config: &dozer_types::models::udf_config::JavaScriptConfig,
+    mut args: Vec<Expression>,
+    ctx: &ParseContext<'_>,
+) -> Result<Expression, Error> {
+    use crate::javascript::{validate_args, Udf};
+    validate_args(name.clone(), &args, ctx.schema)?;
+    let udf = Udf::new(
+        ctx.builder.runtime.clone(),
+        name,
+        config.module.clone(),
+        args.remove(0),
+    )
+    .await?;
+    Ok(Expression::JavaScriptUdf(udf))
+}
+
+async fn parse_sql_in_list_operator(
+    expression: &SqlExpr,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    let SqlExpr::InList {
+        expr,
+        list,
+        negated,
+    } = expression
+    else {
+        return Err(Error::UnsupportedExpression(expression.clone()));
+    };
+    let expr = parse_expr(expr, ctx).await?;
+    let list_expressions = parse_expr_slice(list, ctx).await?;
+    Ok(Expression::InList {
+        expr: Box::new(expr),
+        list: list_expressions,
+        negated: *negated,
+    })
+}
+
+async fn parse_sql_isnull_operator(
+    negated: bool,
+    expr: &Expr,
+    ctx: &mut ParseContext<'_>,
+) -> Result<Expression, Error> {
+    let arg = parse_expr(expr, ctx).await?;
+    if negated {
+        Ok(Expression::IsNotNull { arg: Box::new(arg) })
+    } else {
+        Ok(Expression::IsNull { arg: Box::new(arg) })
     }
+}
 
-    async fn parse_sql_in_list_operator(
-        &mut self,
-        parse_aggregations: bool,
-        expr: &Expr,
-        list: &[Expr],
-        negated: bool,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        let expr = self
-            .parse_sql_expression(parse_aggregations, expr, schema, udfs)
-            .await?;
-        let mut list_expressions = vec![];
-        for expr in list {
-            list_expressions.push(
-                self.parse_sql_expression(parse_aggregations, expr, schema, udfs)
-                    .await?,
-            );
-        }
-        let in_list_expression = Expression::InList {
-            expr: Box::new(expr),
-            list: list_expressions,
-            negated,
-        };
-
-        Ok(in_list_expression)
+fn split_column_ident(
+    ident: &[Ident],
+) -> Result<(&String, Option<&String>, Option<&String>), Error> {
+    match ident.len() {
+        1 => Ok((&ident[0].value, None, None)),
+        2 => Ok((&ident[1].value, Some(&ident[0].value), None)),
+        3 => Ok((
+            &ident[2].value,
+            Some(&ident[1].value),
+            Some(&ident[0].value),
+        )),
+        _ => Err(Error::InvalidIdent(ident.to_vec())),
     }
+}
 
-    async fn parse_sql_isnull_operator(
-        &mut self,
-        parse_aggregations: bool,
-        negated: &bool,
-        expr: &Expr,
-        schema: &Schema,
-        udfs: &[UdfConfig],
-    ) -> Result<Expression, Error> {
-        let arg = self
-            .parse_sql_expression(parse_aggregations, expr, schema, udfs)
-            .await?;
+fn filter_candidates<'a>(
+    candidates: Vec<(usize, &'a FieldDefinition)>,
+    predicate: impl Fn(&SourceDefinition) -> bool,
+) -> Vec<(usize, &'a FieldDefinition)> {
+    candidates
+        .into_iter()
+        .filter(|(_idx, field)| predicate(&field.source))
+        .collect()
+}
 
-        if *negated {
-            Ok(Expression::IsNotNull { arg: Box::new(arg) })
-        } else {
-            Ok(Expression::IsNull { arg: Box::new(arg) })
+fn map_sql_binary_operator(op: &SqlBinaryOperator) -> Result<BinaryOperatorType, Error> {
+    match op {
+        SqlBinaryOperator::Gt => Ok(BinaryOperatorType::Gt),
+        SqlBinaryOperator::GtEq => Ok(BinaryOperatorType::Gte),
+        SqlBinaryOperator::Lt => Ok(BinaryOperatorType::Lt),
+        SqlBinaryOperator::LtEq => Ok(BinaryOperatorType::Lte),
+        SqlBinaryOperator::Eq => Ok(BinaryOperatorType::Eq),
+        SqlBinaryOperator::NotEq => Ok(BinaryOperatorType::Ne),
+        SqlBinaryOperator::Plus => Ok(BinaryOperatorType::Add),
+        SqlBinaryOperator::Minus => Ok(BinaryOperatorType::Sub),
+        SqlBinaryOperator::Multiply => Ok(BinaryOperatorType::Mul),
+        SqlBinaryOperator::Divide => Ok(BinaryOperatorType::Div),
+        SqlBinaryOperator::Modulo => Ok(BinaryOperatorType::Mod),
+        SqlBinaryOperator::And => Ok(BinaryOperatorType::And),
+        SqlBinaryOperator::Or => Ok(BinaryOperatorType::Or),
+        _ => Err(Error::UnsupportedBinaryOperator(op.clone())),
+    }
+}
+
+fn map_sql_cast_type(data_type: &DataType) -> Result<CastOperatorType, Error> {
+    match data_type {
+        DataType::Decimal(_) => Ok(CastOperatorType(FieldType::Decimal)),
+        DataType::Binary(_) => Ok(CastOperatorType(FieldType::Binary)),
+        DataType::Float(_) => Ok(CastOperatorType(FieldType::Float)),
+        DataType::Int(_) | DataType::Integer(_) => Ok(CastOperatorType(FieldType::Int)),
+        DataType::UnsignedInt(_) | DataType::UnsignedInteger(_) => {
+            Ok(CastOperatorType(FieldType::UInt))
         }
+        DataType::Boolean => Ok(CastOperatorType(FieldType::Boolean)),
+        DataType::Date => Ok(CastOperatorType(FieldType::Date)),
+        DataType::Timestamp(..) => Ok(CastOperatorType(FieldType::Timestamp)),
+        DataType::Text => Ok(CastOperatorType(FieldType::Text)),
+        DataType::String => Ok(CastOperatorType(FieldType::String)),
+        DataType::JSON => Ok(CastOperatorType(FieldType::Json)),
+        DataType::Custom(name, ..) => match name.to_string().to_lowercase().as_str() {
+            "uint" => Ok(CastOperatorType(FieldType::UInt)),
+            "u128" => Ok(CastOperatorType(FieldType::U128)),
+            "i128" => Ok(CastOperatorType(FieldType::I128)),
+            _ => Err(Error::UnsupportedDataType(data_type.clone())),
+        },
+        _ => Err(Error::UnsupportedDataType(data_type.clone())),
     }
 }
 
@@ -1059,6 +778,5 @@ pub fn extend_schema_source_def(schema: &Schema, name: &NameOrAlias) -> Schema {
         fields.push(field);
     }
     output_schema.fields = fields;
-
     output_schema
 }

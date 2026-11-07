@@ -1,4 +1,4 @@
-use crate::models::udf_config::{OnnxConfig, UdfConfig, UdfType};
+use crate::models::udf_config::{OnnxConfig, UdfConfig, UdfType, WasmConfig};
 
 #[test]
 fn standard() {
@@ -14,6 +14,38 @@ fn standard() {
         }),
         name: "is_fraudulent".to_string(),
     };
-    let expected = udf_conf;
-    assert_eq!(expected, deserializer_result);
+    assert_eq!(udf_conf, deserializer_result);
+}
+
+#[test]
+fn wasm_udf_deserialize() {
+    let wasm_yaml = r#"
+    name: my_function
+    config: !Wasm
+      module: udfs/wasm/my_function.wasm
+  "#;
+    let parsed = serde_yaml::from_str::<UdfConfig>(wasm_yaml).unwrap();
+    let expected = UdfConfig {
+        name: "my_function".to_string(),
+        config: UdfType::Wasm(WasmConfig {
+            module: "udfs/wasm/my_function.wasm".to_string(),
+        }),
+    };
+    assert_eq!(expected, parsed);
+
+    let wasm_path_alias_yaml = r#"
+    name: my_function
+    config: !Wasm
+      path: udfs/wasm/my_function
+  "#;
+    let parsed_alias = serde_yaml::from_str::<UdfConfig>(wasm_path_alias_yaml).unwrap();
+    assert_eq!(
+        parsed_alias,
+        UdfConfig {
+            name: "my_function".to_string(),
+            config: UdfType::Wasm(WasmConfig {
+                module: "udfs/wasm/my_function".to_string(),
+            }),
+        }
+    );
 }
