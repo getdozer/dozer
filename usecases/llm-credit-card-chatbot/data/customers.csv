@@ -1,0 +1,5 @@
+customer_id,full_name,credit_score,annual_income,preferred_category,kyc_verified
+101,Alice Rivera,785,135000,travel,true
+102,Bruno Costa,690,68000,dining,true
+103,Carla Mendes,610,32000,groceries,true
+104,Diego Novak,810,190000,cloud_tech,false

@@ -1,0 +1,69 @@
+app_name: llm-credit-card-chatbot
+version: 1
+connections:
+  - config: !LocalStorage
+      details:
+        path: ./data
+      tables:
+        - !Table
+          name: customers
+          config: !CSV
+            path: customers.csv
+            extension: .csv
+        - !Table
+          name: transactions
+          config: !CSV
+            path: transactions.csv
+            extension: .csv
+        - !Table
+          name: credit_cards
+          config: !CSV
+            path: credit_cards.csv
+            extension: .csv
+    name: banking_storage
+
+sources:
+  - name: customers
+    table_name: customers
+    connection: banking_storage
+  - name: transactions
+    table_name: transactions
+    connection: banking_storage
+  - name: credit_cards
+    table_name: credit_cards
+    connection: banking_storage
+
+sql: |
+  SELECT
+    c.customer_id,
+    c.full_name,
+    c.credit_score,
+    c.annual_income,
+    c.preferred_category,
+    c.kyc_verified,
+    COUNT(t.tx_id) AS tx_count,
+    SUM(t.amount) AS total_spend
+  INTO customer_profiles
+  FROM customers c
+  LEFT JOIN transactions t ON c.customer_id = t.customer_id
+  GROUP BY
+    c.customer_id,
+    c.full_name,
+    c.credit_score,
+    c.annual_income,
+    c.preferred_category,
+    c.kyc_verified;
+
+endpoints:
+  - name: customer_profiles
+    path: /customer_profiles
+    table_name: customer_profiles
+    index:
+      primary_key:
+        - customer_id
+  - name: credit_cards
+    path: /credit_cards
+    table_name: credit_cards
+    index:
+      primary_key:
+        - card_id
