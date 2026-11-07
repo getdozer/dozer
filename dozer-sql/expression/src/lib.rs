@@ -23,6 +23,8 @@ mod javascript;
 mod onnx;
 #[cfg(feature = "python")]
 mod python_udf;
+#[cfg(feature = "wasm")]
+mod wasm;
 
 pub use num_traits;
 pub use sqlparser;
@@ -70,7 +72,6 @@ mod tests {
                 .prop_map(|(year, month, day, secs, nano)| {
                     let timezone_east = FixedOffset::east_opt(8 * 60 * 60).unwrap();
                     let date = NaiveDate::from_ymd_opt(year, month, day);
-                    // Some dates are not able to created caused by leap in February with day larger than 28 or 29
                     if date.is_none() {
                         return ArbitraryDateTime(DateTime::default());
                     }
