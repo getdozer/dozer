@@ -461,6 +461,17 @@ impl ExpressionBuilder {
                 .await;
         }
 
+        if function_name.starts_with("wasm_") {
+            let udf_name = function_name.strip_prefix("wasm_").unwrap();
+            let default_path = format!("udfs/wasm/{}.wasm", udf_name);
+            let wasm_config = dozer_types::models::udf_config::WasmConfig {
+                path: default_path,
+            };
+            return self
+                .parse_wasm_udf(udf_name.to_string(), &wasm_config, sql_function, schema, udfs)
+                .await;
+        }
+
         if let Some(aggr_check) = self
             .aggr_function_check(
                 function_name.clone(),
@@ -572,6 +583,17 @@ impl ExpressionBuilder {
                         let _ = config;
                         Err(Error::JavaScriptNotEnabled)
                     }
+                }
+
+                UdfType::Wasm(config) => {
+                    self.parse_wasm_udf(
+                        function_name.clone(),
+                        config,
+                        sql_function,
+                        schema,
+                        udfs,
+                    )
+                    .await
                 }
             };
         }
@@ -993,6 +1015,41 @@ impl ExpressionBuilder {
         )
         .await?;
         Ok(Expression::JavaScriptUdf(udf))
+    }
+
+    async fn parse_wasm_udf(
+        &mut self,
+        name: String,
+        config: &dozer_types::models::udf_config::WasmConfig,
+        function: &Function,
+        schema: &Schema,
+        udfs: &[UdfConfig],
+    ) -> Result<Expression, Error> {
+        use crate::wasm_udf::{Error as WasmError, WasmUdf};
+
+        let mut args = vec![];
+        for argument in &function.args {
+            let arg = self
+                .parse_sql_function_arg(false, argument, schema, udfs)
+                .await?;
+            args.push(arg);
+        }
+
+        let return_type = if let Some(ident) = &function.return_type {
+            FieldType::try_from(ident.value.as_str())
+                .map_err(|e| WasmError::FailedToParseReturnType(e.to_string()))?
+        } else {
+            FieldType::Int
+        };
+
+        let udf = WasmUdf::new(
+            name,
+            std::path::PathBuf::from(&config.path),
+            args,
+            return_type,
+        )?;
+
+        Ok(Expression::WasmUDF(udf))
     }
 
     async fn parse_sql_in_list_operator(

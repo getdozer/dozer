@@ -105,6 +105,7 @@ pub enum Expression {
     },
     #[cfg(feature = "javascript")]
     JavaScriptUdf(crate::javascript::Udf),
+    WasmUDF(crate::wasm_udf::WasmUdf),
 }
 
 impl Expression {
@@ -174,6 +175,17 @@ impl Expression {
                 name.to_string()
                     + "("
                     + args
+                        .iter()
+                        .map(|expr| expr.to_string(schema))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str()
+                    + ")"
+            }
+            Expression::WasmUDF(udf) => {
+                udf.name.clone()
+                    + "("
+                    + udf.args
                         .iter()
                         .map(|expr| expr.to_string(schema))
                         .collect::<Vec<String>>()
@@ -346,6 +358,7 @@ impl Expression {
                 use std::borrow::Borrow;
                 crate::onnx::udf::evaluate_onnx_udf(schema, session.0.borrow(), args, record)
             }
+            Expression::WasmUDF(udf) => udf.evaluate(schema, record),
 
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
             Expression::AggregateFunction { fun, args: _ } => {
@@ -487,6 +500,12 @@ impl Expression {
             )),
             #[cfg(feature = "javascript")]
             Expression::JavaScriptUdf(udf) => Ok(udf.get_type()),
+            Expression::WasmUDF(udf) => Ok(ExpressionType::new(
+                udf.return_type,
+                false,
+                SourceDefinition::Dynamic,
+                false,
+            )),
             Expression::IsNull { arg: _ } => Ok(ExpressionType::new(
                 FieldType::Boolean,
                 false,
