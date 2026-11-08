@@ -67,8 +67,7 @@ impl WasmUdf {
         return_type: FieldType,
     ) -> Result<Self, Error> {
         let wasm_bytes = if path.exists() {
-            std::fs::read(&path)
-                .map_err(|e| Error::FileReadError(path.clone(), e.to_string()))?
+            std::fs::read(&path).map_err(|e| Error::FileReadError(path.clone(), e.to_string()))?
         } else {
             return Err(Error::FileNotFound(path));
         };

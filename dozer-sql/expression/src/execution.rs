@@ -185,7 +185,8 @@ impl Expression {
             Expression::WasmUDF(udf) => {
                 udf.name.clone()
                     + "("
-                    + udf.args
+                    + udf
+                        .args
                         .iter()
                         .map(|expr| expr.to_string(schema))
                         .collect::<Vec<String>>()

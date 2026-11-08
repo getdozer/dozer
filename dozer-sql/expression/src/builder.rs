@@ -464,11 +464,15 @@ impl ExpressionBuilder {
         if function_name.starts_with("wasm_") {
             let udf_name = function_name.strip_prefix("wasm_").unwrap();
             let default_path = format!("udfs/wasm/{}.wasm", udf_name);
-            let wasm_config = dozer_types::models::udf_config::WasmConfig {
-                path: default_path,
-            };
+            let wasm_config = dozer_types::models::udf_config::WasmConfig { path: default_path };
             return self
-                .parse_wasm_udf(udf_name.to_string(), &wasm_config, sql_function, schema, udfs)
+                .parse_wasm_udf(
+                    udf_name.to_string(),
+                    &wasm_config,
+                    sql_function,
+                    schema,
+                    udfs,
+                )
                 .await;
         }
 
@@ -586,14 +590,8 @@ impl ExpressionBuilder {
                 }
 
                 UdfType::Wasm(config) => {
-                    self.parse_wasm_udf(
-                        function_name.clone(),
-                        config,
-                        sql_function,
-                        schema,
-                        udfs,
-                    )
-                    .await
+                    self.parse_wasm_udf(function_name.clone(), config, sql_function, schema, udfs)
+                        .await
                 }
             };
         }
