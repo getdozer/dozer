@@ -13,7 +13,7 @@ use std::iter::zip;
 
 use super::aggregate::AggregateFunctionType;
 use super::cast::CastOperatorType;
-use super::in_list::evaluate_in_list;
+use super::in_list::{evaluate_in_list, evaluate_in_subquery};
 use super::scalar::string::{evaluate_like, get_like_operator_type};
 use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
@@ -70,6 +70,11 @@ pub enum Expression {
     InList {
         expr: Box<Expression>,
         list: Vec<Expression>,
+        negated: bool,
+    },
+    InSubquery {
+        expr: Box<Expression>,
+        subquery: Box<crate::planner::SubqueryPlan>,
         negated: bool,
     },
     Now {
@@ -257,6 +262,15 @@ impl Expression {
                         .as_str()
                     + ")"
             }
+            Expression::InSubquery {
+                expr,
+                subquery,
+                negated,
+            } => {
+                expr.to_string(schema)
+                    + if *negated { " NOT" } else { "" }
+                    + " IN (SELECT ...)"
+            }
             Expression::GeoFunction { fun, args } => {
                 fun.to_string()
                     + "("
@@ -362,6 +376,11 @@ impl Expression {
                 list,
                 negated,
             } => evaluate_in_list(schema, expr, list, *negated, record),
+            Expression::InSubquery {
+                expr,
+                subquery,
+                negated,
+            } => evaluate_in_subquery(schema, expr, subquery, *negated, record),
             Expression::Cast { arg, typ } => typ.evaluate(schema, arg, record),
             Expression::GeoFunction { fun, args } => fun.evaluate(schema, args, record),
             Expression::ConditionalExpression { fun, args } => fun.evaluate(schema, args, record),
@@ -433,6 +452,16 @@ impl Expression {
             Expression::InList {
                 expr: _,
                 list: _,
+                negated: _,
+            } => Ok(ExpressionType::new(
+                FieldType::Boolean,
+                false,
+                SourceDefinition::Dynamic,
+                false,
+            )),
+            Expression::InSubquery {
+                expr: _,
+                subquery: _,
                 negated: _,
             } => Ok(ExpressionType::new(
                 FieldType::Boolean,

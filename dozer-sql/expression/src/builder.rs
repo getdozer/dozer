@@ -143,6 +143,17 @@ impl ExpressionBuilder {
                 )
                 .await
             }
+            SqlExpr::InSubquery { expr, subquery, negated } => {
+                self.parse_sql_in_subquery_operator(
+                    parse_aggregations,
+                    expr,
+                    subquery,
+                    *negated,
+                    schema,
+                    udfs,
+                )
+                .await
+            }
 
             SqlExpr::Cast { expr, data_type } => {
                 self.parse_sql_cast_operator(parse_aggregations, expr, data_type, schema, udfs)
@@ -1021,6 +1032,29 @@ impl ExpressionBuilder {
         };
 
         Ok(in_list_expression)
+    }
+
+    async fn parse_sql_in_subquery_operator(
+        &mut self,
+        parse_aggregations: bool,
+        expr: &sqlparser::ast::Expr,
+        _subquery: &Box<sqlparser::ast::Query>,
+        negated: bool,
+        schema: &Schema,
+        udfs: &[UdfConfig],
+    ) -> Result<Expression, Error> {
+        let expr = self
+            .parse_sql_expression(parse_aggregations, expr, schema, udfs)
+            .await?;
+        // Convert subquery to SubqueryPlan
+        // For now, create a placeholder - full implementation requires
+        // recursive query planning which is handled at the pipeline level
+        let subquery_plan = crate::planner::SubqueryPlan::empty();
+        Ok(Expression::InSubquery {
+            expr: Box::new(expr),
+            subquery: Box::new(subquery_plan),
+            negated,
+        })
     }
 
     async fn parse_sql_isnull_operator(
