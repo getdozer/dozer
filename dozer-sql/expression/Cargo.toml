@@ -9,7 +9,7 @@ license = "AGPL-3.0-or-later"
 dozer-types = { path = "../../dozer-types" }
 dozer-core = { path = "../../dozer-core" }
 num-traits = "0.2.16"
-sqlparser = { git = "https://github.com/getdozer/sqlparser-rs.git" }
+sqlparser = { git = "https://github.com/getdozer/sqlparser-rs.git", features = ["visitor"] }
 bigdecimal = { version = "0.3", features = ["serde"], optional = true }
 ort = { version = "1.15.2", optional = true }
 ndarray = { version = "0.15", optional = true }

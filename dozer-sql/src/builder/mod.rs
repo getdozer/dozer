@@ -129,6 +129,35 @@ fn query_to_pipeline(
     pipeline_idx: usize,
     is_top_select: bool,
 ) -> Result<(), PipelineError> {
+    // WITH names belong to this query, including parenthesized UNION operands.
+    // Only its output relation is visible to the caller after planning.
+    let outer_tables = query_ctx.pipeline_map.clone();
+    let output_key = (pipeline_idx, table_info.name.0.clone());
+    let result = query_body_to_pipeline(
+        table_info,
+        query,
+        pipeline,
+        query_ctx,
+        pipeline_idx,
+        is_top_select,
+    );
+    let output = query_ctx.pipeline_map.get(&output_key).cloned();
+    query_ctx.pipeline_map = outer_tables;
+    result?;
+    if let Some(output) = output {
+        query_ctx.pipeline_map.insert(output_key, output);
+    }
+    Ok(())
+}
+
+fn query_body_to_pipeline(
+    table_info: TableInfo,
+    query: Query,
+    pipeline: &mut AppPipeline,
+    query_ctx: &mut QueryContext,
+    pipeline_idx: usize,
+    is_top_select: bool,
+) -> Result<(), PipelineError> {
     // return error if there is unsupported syntax
     if !query.order_by.is_empty() {
         return Err(PipelineError::UnsupportedSqlError(
@@ -150,6 +179,7 @@ fn query_to_pipeline(
             ));
         }
 
+        let mut cte_names = HashSet::new();
         for table in with.cte_tables {
             if table.from.is_some() {
                 return Err(PipelineError::UnsupportedSqlError(
@@ -157,10 +187,7 @@ fn query_to_pipeline(
                 ));
             }
             let table_name = table.alias.name.to_string();
-            if query_ctx
-                .pipeline_map
-                .contains_key(&(pipeline_idx, table_name.clone()))
-            {
+            if !cte_names.insert(table_name.clone()) {
                 return Err(InvalidQuery(format!(
                     "WITH query name {table_name:?} specified more than once"
                 )));
@@ -190,21 +217,14 @@ fn query_to_pipeline(
                 is_top_select,
             )?;
         }
-        SetExpr::Query(query) => {
-            let query_name = format!("subquery_{}", query_ctx.get_next_processor_id());
-            let mut ctx = QueryContext::new(query_ctx.udfs.clone(), query_ctx.runtime.clone());
-            query_to_pipeline(
-                TableInfo {
-                    name: NameOrAlias(query_name, None),
-                    override_name: None,
-                },
-                *query,
-                pipeline,
-                &mut ctx,
-                pipeline_idx,
-                false, //Inside a subquery, so not top select
-            )?
-        }
+        SetExpr::Query(query) => query_to_pipeline(
+            table_info,
+            *query,
+            pipeline,
+            query_ctx,
+            pipeline_idx,
+            is_top_select,
+        )?,
         SetExpr::SetOperation {
             op,
             set_quantifier,
@@ -293,19 +313,27 @@ fn select_to_pipeline(
     pipeline.add_processor(Box::new(aggregation), gen_agg_name.clone());
 
     // Where clause
-    if let Some(selection) = select.selection {
+    if let Some(mut selection) = select.selection {
+        let (selection_input, internal_fields) = in_subquery::insert_mark_joins(
+            &mut selection,
+            (gen_product_name, product_output_port),
+            pipeline,
+            query_ctx,
+            pipeline_idx,
+        )?;
         let selection = SelectionProcessorFactory::new(
             gen_selection_name.clone(),
             selection,
             query_ctx.udfs.clone(),
             query_ctx.runtime.clone(),
-        );
+        )
+        .with_internal_fields(internal_fields);
 
         pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
 
         pipeline.connect_nodes(
-            gen_product_name,
-            product_output_port,
+            selection_input.0,
+            selection_input.1,
             gen_selection_name.clone(),
             DEFAULT_PORT_HANDLE,
         );
@@ -383,6 +411,17 @@ fn set_to_pipeline(
     };
 
     let _left_pipeline_name = match *left_select {
+        SetExpr::Query(query) => {
+            query_to_pipeline(
+                left_table_info,
+                *query,
+                pipeline,
+                query_ctx,
+                pipeline_idx,
+                false,
+            )?;
+            gen_left_set_name.clone()
+        }
         SetExpr::Select(select) => select_to_pipeline(
             left_table_info,
             *select,
@@ -414,6 +453,17 @@ fn set_to_pipeline(
     };
 
     let _right_pipeline_name = match *right_select {
+        SetExpr::Query(query) => {
+            query_to_pipeline(
+                right_table_info,
+                *query,
+                pipeline,
+                query_ctx,
+                pipeline_idx,
+                false,
+            )?;
+            gen_right_set_name.clone()
+        }
         SetExpr::Select(select) => select_to_pipeline(
             right_table_info,
             *select,
@@ -560,6 +610,7 @@ struct ConnectionInfo {
 
 mod common;
 mod from;
+mod in_subquery;
 mod join;
 mod table_operator;
 

@@ -4,72 +4,27 @@ use dozer_types::types::{Field, Schema};
 use crate::error::Error;
 use crate::execution::Expression;
 
+fn boolean_operand(field: Field, operator: &str) -> Result<Option<bool>, Error> {
+    match field {
+        Field::Boolean(value) => Ok(Some(value)),
+        Field::Null => Ok(None),
+        other => Err(Error::InvalidType(other, operator.to_string())),
+    }
+}
+
 pub fn evaluate_and(
     schema: &Schema,
     left: &mut Expression,
     right: &mut Expression,
     record: &Record,
 ) -> Result<Field, Error> {
-    let l_field = left.evaluate(record, schema)?;
-    let r_field = right.evaluate(record, schema)?;
-    match l_field {
-        Field::Boolean(true) => match r_field {
-            Field::Boolean(true) => Ok(Field::Boolean(true)),
-            Field::Boolean(false) => Ok(Field::Boolean(false)),
-            Field::Null => Ok(Field::Boolean(false)),
-            Field::UInt(_)
-            | Field::U128(_)
-            | Field::Int(_)
-            | Field::Int8(_)
-            | Field::I128(_)
-            | Field::Float(_)
-            | Field::String(_)
-            | Field::Text(_)
-            | Field::Binary(_)
-            | Field::Decimal(_)
-            | Field::Timestamp(_)
-            | Field::Date(_)
-            | Field::Json(_)
-            | Field::Point(_)
-            | Field::Duration(_) => Err(Error::InvalidType(r_field, "AND".to_string())),
-        },
-        Field::Boolean(false) => match r_field {
-            Field::Boolean(true) => Ok(Field::Boolean(false)),
-            Field::Boolean(false) => Ok(Field::Boolean(false)),
-            Field::Null => Ok(Field::Boolean(false)),
-            Field::UInt(_)
-            | Field::U128(_)
-            | Field::Int(_)
-            | Field::Int8(_)
-            | Field::I128(_)
-            | Field::Float(_)
-            | Field::String(_)
-            | Field::Text(_)
-            | Field::Binary(_)
-            | Field::Decimal(_)
-            | Field::Timestamp(_)
-            | Field::Date(_)
-            | Field::Json(_)
-            | Field::Point(_)
-            | Field::Duration(_) => Err(Error::InvalidType(r_field, "AND".to_string())),
-        },
-        Field::Null => Ok(Field::Boolean(false)),
-        Field::UInt(_)
-        | Field::U128(_)
-        | Field::Int(_)
-        | Field::Int8(_)
-        | Field::I128(_)
-        | Field::Float(_)
-        | Field::String(_)
-        | Field::Text(_)
-        | Field::Binary(_)
-        | Field::Decimal(_)
-        | Field::Timestamp(_)
-        | Field::Date(_)
-        | Field::Json(_)
-        | Field::Point(_)
-        | Field::Duration(_) => Err(Error::InvalidType(l_field, "AND".to_string())),
-    }
+    let left = boolean_operand(left.evaluate(record, schema)?, "AND")?;
+    let right = boolean_operand(right.evaluate(record, schema)?, "AND")?;
+    Ok(match (left, right) {
+        (Some(false), _) | (_, Some(false)) => Field::Boolean(false),
+        (Some(true), Some(true)) => Field::Boolean(true),
+        _ => Field::Null,
+    })
 }
 
 pub fn evaluate_or(
@@ -78,65 +33,13 @@ pub fn evaluate_or(
     right: &mut Expression,
     record: &Record,
 ) -> Result<Field, Error> {
-    let l_field = left.evaluate(record, schema)?;
-    let r_field = right.evaluate(record, schema)?;
-    match l_field {
-        Field::Boolean(true) => match r_field {
-            Field::Boolean(false) => Ok(Field::Boolean(true)),
-            Field::Boolean(true) => Ok(Field::Boolean(true)),
-            Field::Null => Ok(Field::Boolean(true)),
-            Field::UInt(_)
-            | Field::U128(_)
-            | Field::Int(_)
-            | Field::Int8(_)
-            | Field::I128(_)
-            | Field::Float(_)
-            | Field::String(_)
-            | Field::Text(_)
-            | Field::Binary(_)
-            | Field::Decimal(_)
-            | Field::Timestamp(_)
-            | Field::Date(_)
-            | Field::Json(_)
-            | Field::Point(_)
-            | Field::Duration(_) => Err(Error::InvalidType(r_field, "OR".to_string())),
-        },
-        Field::Boolean(false) | Field::Null => match right.evaluate(record, schema)? {
-            Field::Boolean(false) => Ok(Field::Boolean(false)),
-            Field::Boolean(true) => Ok(Field::Boolean(true)),
-            Field::Null => Ok(Field::Boolean(false)),
-            Field::UInt(_)
-            | Field::U128(_)
-            | Field::Int(_)
-            | Field::Int8(_)
-            | Field::I128(_)
-            | Field::Float(_)
-            | Field::String(_)
-            | Field::Text(_)
-            | Field::Binary(_)
-            | Field::Decimal(_)
-            | Field::Timestamp(_)
-            | Field::Date(_)
-            | Field::Json(_)
-            | Field::Point(_)
-            | Field::Duration(_) => Err(Error::InvalidType(r_field, "OR".to_string())),
-        },
-        Field::UInt(_)
-        | Field::U128(_)
-        | Field::Int(_)
-        | Field::Int8(_)
-        | Field::I128(_)
-        | Field::Float(_)
-        | Field::String(_)
-        | Field::Text(_)
-        | Field::Binary(_)
-        | Field::Decimal(_)
-        | Field::Timestamp(_)
-        | Field::Date(_)
-        | Field::Json(_)
-        | Field::Point(_)
-        | Field::Duration(_) => Err(Error::InvalidType(l_field, "OR".to_string())),
-    }
+    let left = boolean_operand(left.evaluate(record, schema)?, "OR")?;
+    let right = boolean_operand(right.evaluate(record, schema)?, "OR")?;
+    Ok(match (left, right) {
+        (Some(true), _) | (_, Some(true)) => Field::Boolean(true),
+        (Some(false), Some(false)) => Field::Boolean(false),
+        _ => Field::Null,
+    })
 }
 
 pub fn evaluate_not(
@@ -235,13 +138,17 @@ mod tests {
 
     fn _test_bool_null_and(f1: Field, f2: Field) {
         let row = Record::new(vec![]);
+        let expected = if f1 == Field::Boolean(false) || f2 == Field::Boolean(false) {
+            Field::Boolean(false)
+        } else {
+            Field::Null
+        };
         let mut l = Box::new(Literal(f1));
         let mut r = Box::new(Literal(f2));
-        assert!(matches!(
-            evaluate_and(&Schema::default(), &mut l, &mut r, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Boolean(false)
-        ));
+        assert_eq!(
+            evaluate_and(&Schema::default(), &mut l, &mut r, &row).unwrap(),
+            expected
+        );
     }
 
     fn _test_bool_bool_or(bool1: bool, bool2: bool) {
@@ -259,22 +166,28 @@ mod tests {
         let row = Record::new(vec![]);
         let mut l = Box::new(Literal(Field::Boolean(_bool)));
         let mut r = Box::new(Literal(Field::Null));
-        assert!(matches!(
-            evaluate_or(&Schema::default(), &mut l, &mut r, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Boolean(_bool)
-        ));
+        assert_eq!(
+            evaluate_or(&Schema::default(), &mut l, &mut r, &row).unwrap(),
+            if _bool {
+                Field::Boolean(true)
+            } else {
+                Field::Null
+            }
+        );
     }
 
     fn _test_null_bool_or(_bool: bool) {
         let row = Record::new(vec![]);
         let mut l = Box::new(Literal(Field::Null));
         let mut r = Box::new(Literal(Field::Boolean(_bool)));
-        assert!(matches!(
-            evaluate_or(&Schema::default(), &mut l, &mut r, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Boolean(_bool)
-        ));
+        assert_eq!(
+            evaluate_or(&Schema::default(), &mut l, &mut r, &row).unwrap(),
+            if _bool {
+                Field::Boolean(true)
+            } else {
+                Field::Null
+            }
+        );
     }
 
     fn _test_bool_not(bool: bool) {

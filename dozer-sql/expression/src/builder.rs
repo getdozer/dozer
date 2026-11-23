@@ -219,7 +219,7 @@ impl ExpressionBuilder {
             .collect();
 
         match matching_by_field.len() {
-            1 => Ok(Expression::Column {
+            1 if src_table_or_alias.is_none() => Ok(Expression::Column {
                 index: matching_by_field[0].0,
             }),
             _ => match src_table_or_alias {
@@ -239,7 +239,7 @@ impl ExpressionBuilder {
                             .collect();
 
                     match matching_by_table_or_alias.len() {
-                        1 => Ok(Expression::Column {
+                        1 if src_connection.is_none() => Ok(Expression::Column {
                             index: matching_by_table_or_alias[0].0,
                         }),
                         _ => match src_connection {

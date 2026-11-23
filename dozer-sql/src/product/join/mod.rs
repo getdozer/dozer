@@ -1,6 +1,7 @@
 use crate::errors::JoinError;
 
 pub mod factory;
+pub(crate) mod mark;
 
 pub(crate) mod operator;
 mod processor;
