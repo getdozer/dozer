@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: dozer-banking-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_DB: dozer_banking
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_replication_slots=10"
+      - "-c"
+      - "max_wal_senders=10"
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./seed.sql:/docker-entrypoint-initdb.d/01-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dozer_banking"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.0
+    container_name: dozer-banking-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+
+  dozer:
+    image: getdozer/dozer:latest
+    container_name: dozer-banking-engine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    volumes:
+      - ./dozer-config.yaml:/app/dozer-config.yaml:ro
+    working_dir: /app
+    command: ["run", "-c", "/app/dozer-config.yaml"]
+
+  rag-assistant:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dozer-banking-rag-assistant
+    depends_on:
+      - dozer
+      - qdrant
+    environment:
+      DOZER_REST_URL: "http://dozer:8080"
+      QDRANT_URL: "http://qdrant:6333"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+    command: ["python", "app.py", "--mode", "demo"]

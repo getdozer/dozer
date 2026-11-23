@@ -1,0 +1,173 @@
+app_name: dozer-banking-llm-rag
+version: 1
+home_dir: ./.dozer
+
+api:
+  rest:
+    port: 8080
+    host: "0.0.0.0"
+    cors: true
+  grpc:
+    port: 50051
+    host: "0.0.0.0"
+    cors: true
+    web: true
+
+flags:
+  dynamic: true
+  grpc_web: true
+  push_events: true
+
+connections:
+  - name: banking_postgres
+    config: !Postgres
+      user: postgres
+      password: postgres_password
+      host: postgres
+      port: 5432
+      database: dozer_banking
+      schema: public
+
+sources:
+  - name: customers
+    table_name: customers
+    connection: banking_postgres
+    columns:
+      - customer_id
+      - full_name
+      - email
+      - credit_score
+      - annual_income
+      - account_tier
+      - preferred_reward_type
+      - updated_at
+
+  - name: transactions
+    table_name: transactions
+    connection: banking_postgres
+    columns:
+      - txn_id
+      - customer_id
+      - merchant_name
+      - category
+      - amount
+      - txn_timestamp
+
+  - name: credit_card_products
+    table_name: credit_card_products
+    connection: banking_postgres
+    columns:
+      - card_id
+      - card_name
+      - category_focus
+      - reward_rate_pct
+      - annual_fee
+      - apr_pct
+      - min_credit_score
+      - min_annual_income
+      - welcome_bonus
+      - perks_summary
+
+  - name: documents
+    table_name: documents
+    connection: banking_postgres
+    columns:
+      - doc_id
+      - title
+      - category
+      - card_id
+      - min_credit_score
+      - content
+      - updated_at
+
+sql: |
+  SELECT
+    c.customer_id,
+    c.full_name,
+    c.email,
+    c.credit_score,
+    c.annual_income,
+    c.account_tier,
+    c.preferred_reward_type,
+    COUNT(t.txn_id) AS transaction_count,
+    COALESCE(SUM(t.amount), 0.0) AS total_spend,
+    COALESCE(SUM(CASE WHEN t.category = 'Travel' THEN t.amount ELSE 0.0 END), 0.0) AS travel_spend,
+    COALESCE(SUM(CASE WHEN t.category = 'Dining' THEN t.amount ELSE 0.0 END), 0.0) AS dining_spend,
+    COALESCE(SUM(CASE WHEN t.category = 'Groceries' THEN t.amount ELSE 0.0 END), 0.0) AS groceries_spend,
+    COALESCE(SUM(CASE WHEN t.category = 'Technology' THEN t.amount ELSE 0.0 END), 0.0) AS tech_spend
+  INTO customer_spending_profiles
+  FROM customers c
+  LEFT JOIN transactions t ON c.customer_id = t.customer_id
+  GROUP BY
+    c.customer_id,
+    c.full_name,
+    c.email,
+    c.credit_score,
+    c.annual_income,
+    c.account_tier,
+    c.preferred_reward_type;
+
+  SELECT
+    c.customer_id,
+    c.full_name,
+    c.credit_score,
+    c.annual_income,
+    p.card_id,
+    p.card_name,
+    p.category_focus,
+    p.reward_rate_pct,
+    p.annual_fee,
+    p.apr_pct,
+    p.min_credit_score,
+    p.min_annual_income,
+    p.welcome_bonus,
+    p.perks_summary
+  INTO eligible_card_recommendations
+  FROM customers c
+  INNER JOIN credit_card_products p
+    ON c.credit_score >= p.min_credit_score
+   AND c.annual_income >= p.min_annual_income;
+
+endpoints:
+  - name: customer_profiles
+    path: /customer_profiles
+    table_name: customer_spending_profiles
+    index:
+      primary_key:
+        - customer_id
+
+  - name: eligible_cards
+    path: /eligible_cards
+    table_name: eligible_card_recommendations
+    index:
+      primary_key:
+        - customer_id
+        - card_id
+
+  - name: credit_card_products
+    path: /credit_card_products
+    table_name: credit_card_products
+    index:
+      primary_key:
+        - card_id
+
+  - name: documents
+    path: /documents
+    table_name: documents
+    index:
+      primary_key:
+        - doc_id
+
+  - name: transactions
+    path: /transactions
+    table_name: transactions
+    index:
+      primary_key:
+        - txn_id
+
+  - name: customers
+    path: /customers
+    table_name: customers
+    index:
+      primary_key:
+        - customer_id
