@@ -8177,6 +8177,7 @@ source = "git+https://github.com/getdozer/sqlparser-rs.git#3dd4e9f14a9631c9707c4
 dependencies = [
  "bigdecimal 0.3.1",
  "log",
+ "sqlparser_derive 0.1.1",
 ]
 
 [[package]]
@@ -8186,7 +8187,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5cc2c25a6c66789625ef164b4c7d2e548d627902280c13710d33da8222169964"
 dependencies = [
  "log",
- "sqlparser_derive",
+ "sqlparser_derive 0.2.2",
+]
+
+[[package]]
+name = "sqlparser_derive"
+version = "0.1.1"
+source = "git+https://github.com/getdozer/sqlparser-rs.git#3dd4e9f14a9631c9707c40d7e497ffe0558a88cd"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]

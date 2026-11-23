@@ -12,6 +12,7 @@ use crate::errors::PipelineError;
 pub struct SelectionProcessor {
     expression: Expression,
     input_schema: Schema,
+    internal_fields: usize,
 }
 
 impl SelectionProcessor {
@@ -19,7 +20,20 @@ impl SelectionProcessor {
         Ok(Self {
             input_schema,
             expression,
+            internal_fields: 0,
         })
+    }
+
+    pub(crate) fn with_internal_fields(mut self, count: usize) -> Self {
+        self.internal_fields = count;
+        self
+    }
+
+    fn project(&self, mut record: Record) -> Record {
+        record
+            .values
+            .truncate(record.values.len() - self.internal_fields);
+        record
     }
 
     fn filter(&mut self, record: &Record) -> Result<bool, PipelineError> {
@@ -34,25 +48,47 @@ impl Processor for SelectionProcessor {
 
     fn process(
         &mut self,
-        mut op: TableOperation,
+        op: TableOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         match op.op {
-            Operation::Delete { ref old } => {
-                if self.filter(old)? {
-                    op.port = DEFAULT_PORT_HANDLE;
-                    fw.send(op);
+            Operation::Delete { old } => {
+                if self.filter(&old)? {
+                    fw.send(TableOperation {
+                        id: op.id,
+                        op: Operation::Delete {
+                            old: self.project(old),
+                        },
+                        port: DEFAULT_PORT_HANDLE,
+                    });
                 }
             }
-            Operation::Insert { ref new } => {
-                if self.filter(new)? {
-                    op.port = DEFAULT_PORT_HANDLE;
-                    fw.send(op);
+            Operation::Insert { new } => {
+                if self.filter(&new)? {
+                    fw.send(TableOperation {
+                        id: op.id,
+                        op: Operation::Insert {
+                            new: self.project(new),
+                        },
+                        port: DEFAULT_PORT_HANDLE,
+                    });
                 }
             }
             Operation::Update { old, new } => {
                 let old_fulfilled = self.filter(&old)?;
                 let new_fulfilled = self.filter(&new)?;
+                let changed = old != new;
+                let old = self.project(old);
+                let new = self.project(new);
+                // A mark changed, but the projected row and compound predicate
+                // may be unchanged (for example, the other arm of an OR is true).
+                if self.internal_fields > 0
+                    && changed
+                    && old_fulfilled == new_fulfilled
+                    && old == new
+                {
+                    return Ok(());
+                }
                 match (old_fulfilled, new_fulfilled) {
                     (true, true) => {
                         // both records fulfills the WHERE condition, forward the operation
@@ -88,7 +124,13 @@ impl Processor for SelectionProcessor {
                     .into_iter()
                     .filter_map(|record| {
                         self.filter(&record)
-                            .map(|fulfilled| if fulfilled { Some(record) } else { None })
+                            .map(|fulfilled| {
+                                if fulfilled {
+                                    Some(self.project(record))
+                                } else {
+                                    None
+                                }
+                            })
                             .transpose()
                     })
                     .collect::<Result<Vec<_>, _>>()?;
